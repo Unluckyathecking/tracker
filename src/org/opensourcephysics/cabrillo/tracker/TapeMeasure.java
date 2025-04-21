@@ -26,6 +26,7 @@ package org.opensourcephysics.cabrillo.tracker;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
@@ -41,6 +42,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeSet;
 
+import javax.swing.Box;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
@@ -96,7 +98,7 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 	public String getVarDimsImpl(String variable) {
 		String[] vars = dataVariables;
 		String[] names = formatVariables;
-		if (names[1].equals(variable)
+		if (names[1].equals(variable) || names[3].equals(variable)
 		// same || vars[1].equals(variable)
 		) {
 			return "L"; //$NON-NLS-1$
@@ -119,12 +121,13 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 
 	static {
 		dataVariables = new String[] { "t", "L", Tracker.THETA, "step", "frame" }; //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
-		formatVariables = new String[] { "t", "L", Tracker.THETA }; //$NON-NLS-1$ //$NON-NLS-2$
+		formatVariables = new String[] { "t", "L", Tracker.THETA, "Lpixel"}; //$NON-NLS-1$ //$NON-NLS-2$
 
 		// assemble format map
 		formatMap = new HashMap<>();
 		formatMap.put("t", new String[] { "t" });
 		formatMap.put("L", new String[] { "L" });
+		formatMap.put("pix", new String[] { "pixel length" });
 		formatMap.put(Tracker.THETA, new String[] { Tracker.THETA });
 
 		// assemble format description map
@@ -132,9 +135,10 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 		formatDescriptionMap.put(formatVariables[0], TrackerRes.getString("PointMass.Data.Description.0")); //$NON-NLS-1$
 		formatDescriptionMap.put(formatVariables[1], TrackerRes.getString("TapeMeasure.Label.Length")); //$NON-NLS-1$
 		formatDescriptionMap.put(formatVariables[2], TrackerRes.getString("TapeMeasure.Label.TapeAngle")); //$NON-NLS-1$
+		formatDescriptionMap.put(formatVariables[3], TrackerRes.getString("TapeMeasure.Description.PixelLength")); //$NON-NLS-1$
 	}
 
-	protected final static ArrayList<String> allVariables = createAllVariables(dataVariables, null); // no field vars
+	protected final static ArrayList<String> allVariables = createAllVariables(dataVariables, formatVariables);
 
 	// instance fields
 	protected boolean fixedLength = true;
@@ -147,6 +151,9 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 	protected Footprint[] tapeFootprints, stickFootprints;
 	protected TreeSet<Integer> lengthKeyFrames = new TreeSet<Integer>(); // applies to sticks only
 	protected JMenuItem attachmentItem;
+	protected NumberField pixelLengthField;
+	protected TextLineLabel pixelLengthLabel;
+	protected Component pixelLengthSeparator;
 //	protected JCheckBoxMenuItem fixedLengthItem;
 	protected Double calibrationLength;
 
@@ -187,6 +194,32 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 		// set initial hint
 		partName = TrackerRes.getString("TTrack.Selected.Hint"); //$NON-NLS-1$
 		hint = TrackerRes.getString("TapeMeasure.Hint"); //$NON-NLS-1$
+		// create pixelLengthField
+		pixelLengthField = new TrackNumberField();
+		pixelLengthField.setMinValue(0);
+		pixelLengthField.addMouseListener(formatMouseListener);
+		pixelLengthField.setBorder(fieldBorder);
+		pixelLengthField.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				// pig still need to deal with keyframes???
+				
+				double pixelLength = pixelLengthField.getValue();
+				int n = tp.getFrameNumber();
+				if (tp.getCoords().getScaleX(n) != 1/pixelLength) {
+					XMLControl trackControl = new XMLControlElement(TapeMeasure.this);
+					XMLControl coordsControl = new XMLControlElement(tp.getCoords());
+					isStepChangingScale = true;
+					tp.getCoords().setScaleXY(n, 1/pixelLength, 1/pixelLength);
+					isStepChangingScale = false;
+					Undo.postTrackAndCoordsEdit(TapeMeasure.this, trackControl, coordsControl);
+				}
+				pixelLengthField.requestFocusInWindow();
+			}
+		});
+		pixelLengthLabel = new TextLineLabel();
+		pixelLengthSeparator = Box.createRigidArea(new Dimension(6, 4));
+		
 		// eliminate minimum of magField
 		magField.setMinValue(Double.NaN);
 		end1Label = new JLabel();
@@ -367,7 +400,7 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 	}
 
 	/**
-	 * Sets this to be a calibration tape or stick.
+	 * Sets this to be a calibration stick.
 	 *
 	 * @param worldLength the initial length of a calibration stick (ignored by
 	 *                    tape)
@@ -836,6 +869,17 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 			list.add(magSeparator);
 			list.add(angleLabel);
 			list.add(angleField);
+			
+			if (this.isCalibrator) {
+				pixelLengthField.setUnits(trackerPanel.getUnits(this, dataVariables[1]));
+				pixelLengthLabel.setText(TrackerRes.getString("TapeMeasure.Label.PixelLength")); //$NON-NLS-1$
+				pixelLengthLabel.setToolTipText(TrackerRes.getString("TapeMeasure.Description.PixelLength")); //$NON-NLS-1$
+				pixelLengthField.setToolTipText(TrackerRes.getString("TapeMeasure.Field.PixelLength.Tooltip")); //$NON-NLS-1$
+				list.add(pixelLengthSeparator);
+				list.add(pixelLengthLabel);
+				list.add(pixelLengthField);
+			}
+
 			boolean enabled = isFieldsEnabled();
 			magField.setEnabled(enabled);
 			angleField.setEnabled(enabled);
@@ -1015,6 +1059,7 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 			numberFields.put(dataVariables[0], new NumberField[] { tField });
 			numberFields.put(dataVariables[1], new NumberField[] { magField, inputField });
 			numberFields.put(dataVariables[2], new NumberField[] { angleField });
+			numberFields.put(formatVariables[3], new NumberField[] { pixelLengthField });
 		}
 		return numberFields;
 	}
@@ -1082,7 +1127,8 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 	@Override
 	public void setFontLevel(int level) {
 		super.setFontLevel(level);
-		Object[] objectsToSize = new Object[] { end1Label, end2Label, lengthLabel };
+		Object[] objectsToSize = new Object[] { end1Label, end2Label, 
+				lengthLabel, pixelLengthLabel};
 		FontSizer.setFonts(objectsToSize);
 	}
 

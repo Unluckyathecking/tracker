@@ -44,7 +44,6 @@ import org.opensourcephysics.controls.XMLControl;
 import org.opensourcephysics.controls.XMLControlElement;
 import org.opensourcephysics.display.DrawingPanel;
 import org.opensourcephysics.display.Interactive;
-import org.opensourcephysics.display.OSPRuntime;
 import org.opensourcephysics.media.core.ImageCoordSystem;
 import org.opensourcephysics.media.core.TPoint;
 import org.opensourcephysics.media.core.VideoPanel;
@@ -439,6 +438,7 @@ public class TapeStep extends Step {
 		tape.angleField.setValue(xAxisToTapeAngle);
 		double length = fromEnds ? Math.sqrt(dx * dx + dy * dy) : worldLength;
 		tape.magField.setValue(length);
+		tape.pixelLengthField.setValue(1/scaleX);
 		return length;
 	}
 
