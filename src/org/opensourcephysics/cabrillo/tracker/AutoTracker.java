@@ -62,6 +62,7 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
+import java.awt.geom.RectangularShape;
 import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -78,6 +79,7 @@ import java.util.TreeMap;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
@@ -91,6 +93,7 @@ import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JRadioButton;
 import javax.swing.JSpinner;
 import javax.swing.JTextArea;
 import javax.swing.JToolBar;
@@ -166,10 +169,17 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	private final static double[] defaultSearchSize = { 40, 40 };
 	private final static int templateIconMagnification = 2;
 	private final static int predictionLookback = 4;
+	private final static Color RUST = new Color(100, 20, 20);
 	
-	// not final -- so why static? To remember state?
+	private final static int ALWAYS_STOP = 0;
+	private final static int STOP_NO_MATCH = 1;
+	private final static int NEVER_STOP = 2;
+	protected static int stopPolicy = ALWAYS_STOP;
 
-	protected static boolean neverPause = true, autoSkip;
+	private final static int LOOK_AHEAD = 0;
+	private final static int FOLLOW = 1;
+	private final static int FIXED = 2;
+	protected static int searchAreaPolicy = LOOK_AHEAD;
 
 	static {
 		format.setMinimumIntegerDigits(1);
@@ -186,7 +196,8 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	//private TrackerPanel trackerPanel;
 	private int trackID;
 	private Wizard wizard;
-	private Shape match = new Ellipse2D.Double();
+	private RectangularShape ellipseMatch = new Ellipse2D.Double();
+	private RectangularShape rectangleMatch = new Rectangle2D.Double();
 	private double minMaskRadius = 4;
 	private Handle maskHandle = new Handle("mask");
 	private Corner maskCorner = new Corner("mask");
@@ -250,10 +261,12 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				if (!active || track == null) {
 					return;
 				}
-				// if never pausing, don't look ahead
-				boolean moveSearchArea = !neverPause;
-				if (markCurrentFrame(moveSearchArea) || neverPause) {
-					// successfully found/marked a good match
+
+				boolean moveSearchArea = searchAreaPolicy != FIXED;
+				boolean keepGoing = stopPolicy == NEVER_STOP;
+				if (markCurrentFrame(moveSearchArea) || keepGoing) {
+					// successfully found/marked a good match 
+					// or never stopping
 					if (!canStep()) { // reached the end
 						stop(true, true);
 						return;
@@ -331,7 +344,11 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		TrackerPanel trackerPanel = trackerPanel();
 		int n = trackerPanel.getFrameNumber();
 		Target target = new Target();
-		Shape mask = new Ellipse2D.Double();
+		
+		RectangularShape mask = getWizard().ellipseCheckbox.isSelected()?
+				new Ellipse2D.Double():
+				new Rectangle2D.Double();
+		
 		maskCenter.setLocation(x, y);
 		maskCorner.setLocation(x + defaultMaskSize[0], y + defaultMaskSize[1]);
 		searchCenter.setLocation(x, y);
@@ -366,7 +383,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		wizard.changed = false;
 		active = true; // actively searching
 		paused = false;
-		if (!startWithThis || markCurrentFrame(false) || neverPause) {
+		if (!startWithThis || markCurrentFrame(false) || stopPolicy==NEVER_STOP) {
 			if (canStep() && (!startWithThis || stepping)) {
 				frame.getTrackerPanelForID(panelID).getPlayer().step();
 				return;
@@ -397,7 +414,6 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		stepping = false; // don't keep stepping
 		active = !now && !paused;
 		paused = false;
-		wizard.prepareForFixedSearch(false);
 		wizard.refreshGUI();
 		if (update) {
 			TTrack track = getTrack();
@@ -442,7 +458,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			if (p == null) {
 				if (peakWidthAndHeight[1] < possibleMatch) {
 					frameData.setMatchIcon(null);
-				} else if (autoSkip) {
+				} else if (stopPolicy == STOP_NO_MATCH) {
 					return true;
 				}
 			}
@@ -489,7 +505,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 
 		// set predictedTarget to prev position
 		predictedTarget.setLocation(prevPoints[0].getX(), prevPoints[0].getY());
-		if (!lookAhead || prevPoints[1] == null) {
+		if (searchAreaPolicy != LOOK_AHEAD || prevPoints[1] == null) {
 			// no recent velocity or acceleration data available
 			success = true;
 		}
@@ -895,7 +911,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				TPoint[] searchPts = frameData.getSearchPoints(true);
 				if (searchPts != null)
 					setSearchPoints(searchPts[0], searchPts[1]);
-				else if (lookAhead && keyFrameData != null) {
+				else if (searchAreaPolicy == LOOK_AHEAD && keyFrameData != null) {
 					TPoint prediction = getPredictedMatchTarget(n);
 					if (prediction != null) {
 						setSearchPoints(getMatchCenter(prediction), null);
@@ -954,10 +970,10 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				needsRepaint = true;
 				// restore corner positions
 				Shape mask = keyFrameData.getMask();
-				if (mask instanceof Ellipse2D.Double) {
-					Ellipse2D.Double circle = (Ellipse2D.Double) mask;
-					maskCorner.x = maskCenter.x + circle.width / (2 * cornerFactor);
-					maskCorner.y = maskCenter.y + circle.height / (2 * cornerFactor);
+				if (mask instanceof RectangularShape) {
+					RectangularShape maskShape = (RectangularShape) mask;
+					maskCorner.x = maskCenter.x + maskShape.getWidth() / (2 * cornerFactor);
+					maskCorner.y = maskCenter.y + maskShape.getHeight() / (2 * cornerFactor);
 				}
 				searchCorner.x = searchRect2D.getMaxX();
 				searchCorner.y = searchRect2D.getMaxY();
@@ -1173,7 +1189,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		KeyFrameData keyFrameData = getPanelKeyFrameData();
 		if (getVideo() != null && keyFrameData != null) {
 			// create template image
-			Shape mask = keyFrameData.getMask();
+			RectangularShape mask = keyFrameData.getMask();
 			Rectangle rect = mask.getBounds();
 			// translate mask to (0, 0) relative to template
 			transform.setToTranslation(-rect.x, -rect.y);
@@ -1615,11 +1631,11 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 */
 	protected void refreshKeyFrame(KeyFrameData keyFrame) {
 		Shape mask = keyFrame.getMask();
-		if (mask instanceof Ellipse2D.Double) {
+		if (mask instanceof RectangularShape) {
 			// prevent the mask from being too small to contain any pixels
 			keyFrame.getMaskPoints()[0].setLocation(maskCenter);
 			keyFrame.getMaskPoints()[1].setLocation(maskCorner);
-			Ellipse2D.Double ellipse = (Ellipse2D.Double) mask;
+			RectangularShape maskShape = (RectangularShape) mask;
 			double sin = maskCenter.sin(maskCorner);
 			double cos = maskCenter.cos(maskCorner);
 			if (Double.isNaN(sin)) {
@@ -1641,7 +1657,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				else
 					dy = -1;
 			}
-			ellipse.setFrameFromCenter(maskCenter.x, maskCenter.y, maskCenter.x + dx, maskCenter.y + dy);
+			maskShape.setFrameFromCenter(maskCenter.x, maskCenter.y, maskCenter.x + dx, maskCenter.y + dy);
 		}
 		wizard.replaceIcons(keyFrame);
 		// get the marked point and set target position AFTER refreshing keyFrame
@@ -1669,13 +1685,13 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 * @param pts TPoint[] {center, frame corner}
 	 * @return a shape suitable for drawing
 	 */
-	protected Shape getMatchShape(TPoint[] pts) {
-		if (match instanceof Ellipse2D.Double) {
-			Ellipse2D.Double ellipse = (Ellipse2D.Double) match;
-			ellipse.setFrameFromCenter(pts[0], pts[1]);
-			return ellipse;
-		}
-		return null;
+	protected RectangularShape getMatchShape(TPoint[] pts) {
+		RectangularShape mask = getPanelKeyFrameData().getMask();
+		RectangularShape match = mask instanceof Ellipse2D?  
+				ellipseMatch:
+				rectangleMatch;
+		match.setFrameFromCenter(pts[0], pts[1]);
+		return match;
 	}
 
 	final static int STATUS_KEY_FRAME = 0;
@@ -1778,7 +1794,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	}
 
 	protected static boolean mayLeaveGaps() {
-		return neverPause || autoSkip;
+		return stopPolicy != ALWAYS_STOP;
 	}
 
 	protected boolean isDrawingKeyFrameFor(TTrack track, int index) {
@@ -2351,12 +2367,12 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 */
 	protected class KeyFrameData extends FrameData {
 
-		private Shape mask;
+		private RectangularShape mask;
 		private Target target;
 		private TPoint[] maskPoints = { new TPoint(), new TPoint() };
 		private TemplateMatcher matcher;
 
-		KeyFrameData(TPoint keyPt, Shape mask, Target target) {
+		KeyFrameData(TPoint keyPt, RectangularShape mask, Target target) {
 			super(AutoTracker.this.getStepPointIndex(keyPt), keyPt.getFrameNumber(trackerPanel()));
 			this.mask = mask;
 			this.target = target;
@@ -2369,7 +2385,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			return true;
 		}
 
-		Shape getMask() {
+		RectangularShape getMask() {
 			return mask;
 		}
 
@@ -2406,23 +2422,27 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		private JButton startButton, searchNextButton, searchThisButton;
 		private JPopupMenu popup;
 		private JButton closeButton, helpButton, deleteButton, keyFrameButton;
+		private JButton copyDataButton;
 		private JButton acceptButton, skipButton;
 		private JSpinner evolveSpinner, acceptSpinner, tetherSpinner;
 		private JComboBox<Object> trackDropdown, pointDropdown;
-		private boolean isVisible, changed, hidePopup;
+		private boolean isVisible, changed;
 		private JTextArea textPane;
-		protected JToolBar templateToolbar, searchToolbar, targetToolbar, imageToolbar, trackToolbar;
+		protected JToolBar templateToolbar, searchToolbar, targetToolbar, imageToolbar, stopOnToolbar;
 		private JPanel startPanel, followupPanel, infoPanel, northPanel, targetPanel;
 		private JLabel templateImageLabel, matchImageLabel, evolvedImageLabel, keyImageLabel;
-		private JLabel acceptLabel, templateLabel;
+		private JLabel acceptLabel, templateLabel, ellipseLabel;
 		private JLabel frameLabel, evolveLabel, tetherLabel, searchLabel, targetLabel;
-		private JLabel pointLabel, trackLabel;
+		private JLabel pointLabel, trackLabel, stopOnLabel;
 		protected Dimension textPaneSize;
-		private JCheckBox lookAheadCheckbox, oneDCheckbox, autoSkipCheckbox;
+		private JCheckBox ellipseCheckbox;
+		private JCheckBox oneDCheckbox;
+		private JRadioButton poorMatchButton, noMatchButton, neverStopButton;
+		private JRadioButton lookAheadButton, followButton, fixedButton;
 		private Object mouseOverObj;
 		private MouseAdapter mouseOverListener;
 		private Timer mouseOverTimer, evolveTemplateTimer;
-		private boolean ignoreChanges, isPrevValid, prevLookAhead, prevOneD, prevAutoskip;
+		private boolean ignoreChanges;
 		private int prevEvolution;
 		private boolean refreshPosted;
 		protected boolean isPositioned;
@@ -2611,11 +2631,6 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 						VideoClip clip = trackerPanel.getPlayer().getVideoClip();
 						trackerPanel.getPlayer().setStepNumber(clip.getStepCount() - 1);
 						break;
-					case KeyEvent.VK_SHIFT:
-						if (!stepping) {
-							startButton.setText(TrackerRes.getString("AutoTracker.Wizard.Button.Options")); //$NON-NLS-1$ );
-						}
-						break;
 					}
 				}
 
@@ -2722,7 +2737,6 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			startButton = new JButton();
 			startButton.setDisabledIcon(graySearchIcon);
 			final ActionListener searchAction = (e) -> {
-				hidePopup = false;
 				if (stepping) {
 					stop(false, false); // stop after the next search
 				} else
@@ -2730,16 +2744,15 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			};
 
 			startButton.addActionListener((e) -> {
-				startAction(e, searchAction);
+				searchAction.actionPerformed(e);
 			});
 			startButton.addKeyListener(kl);
 			startButton.addMouseMotionListener(new MouseAdapter() {
 				@Override
 				public void mouseMoved(MouseEvent e) {
 					startButton.setText(
-							e.isShiftDown() && !stepping ? TrackerRes.getString("AutoTracker.Wizard.Button.Options") : //$NON-NLS-1$
-					stepping ? TrackerRes.getString("AutoTracker.Wizard.Button.Stop") : //$NON-NLS-1$
-					TrackerRes.getString("AutoTracker.Wizard.Button.Search")); //$NON-NLS-1$ );
+							stepping ? TrackerRes.getString("AutoTracker.Wizard.Button.Stop") : //$NON-NLS-1$
+							TrackerRes.getString("AutoTracker.Wizard.Button.Search")); //$NON-NLS-1$ );
 				}
 			});
 			startPanel.add(startButton);
@@ -2749,14 +2762,12 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 					trackerPanel().getPlayer().back();
 					return;
 				}
-				neverPause = (e.getModifiers() > 16);
 				search(true, false); // search this frame and stop
 			});
 			searchThisButton.addKeyListener(kl);
 			startPanel.add(searchThisButton);
 			searchNextButton = new JButton();
 			searchNextButton.addActionListener((e) -> {
-				neverPause = (e.getModifiers() > 16);
 				search(false, false); // search next frame and stop
 			});
 			searchNextButton.addKeyListener(kl);
@@ -2821,12 +2832,14 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			evolveLabel = new JLabel();
 			evolveLabel.setOpaque(false);
 			evolveLabel.addMouseListener(mouseOverListener);
+			evolveLabel.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 0));
 			tetherLabel = new JLabel();
 			tetherLabel.setOpaque(false);
 			tetherLabel.addMouseListener(mouseOverListener);
 			tetherLabel.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 0));
 			acceptLabel = new JLabel();
 			acceptLabel.setOpaque(false);
+			acceptLabel.addMouseListener(mouseOverListener);
 			acceptLabel.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 0));
 			// create spinners
 			evolveSpinner = new TallSpinner(new SpinnerNumberModel(defaultEvolve, 0, maxEvolve, 1), trackDropdown);
@@ -2887,20 +2900,46 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 					});
 				}
 			}
+			// prepare ellipse template checkbox and label
+			ellipseLabel = new JLabel();
+			ellipseLabel.setOpaque(false);
+			ellipseLabel.addMouseListener(mouseOverListener);
+			ellipseLabel.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 0));
+			TrackerPanel trackerPanel = frame.getTrackerPanelForID(panelID);
+			ellipseCheckbox = new JCheckBox();
+			ellipseCheckbox.setSelected(true);
+			ellipseCheckbox.addMouseListener(mouseOverListener);
+			ellipseCheckbox.setOpaque(false);
+			ellipseCheckbox.addActionListener((e) -> {
+				KeyFrameData keyFrameData = getPanelKeyFrameData();
+				if (keyFrameData == null) return;
+				RectangularShape s = keyFrameData.getMask();
+				keyFrameData.mask = ellipseCheckbox.isSelected()?
+						new Ellipse2D.Double(s.getX(), s.getY(), s.getWidth(), s.getHeight()):
+						new Rectangle2D.Double(s.getX(), s.getY(), s.getWidth(), s.getHeight());
+				search(true, false);
+				replaceIcons(keyFrameData);
+				TFrame.repaintT(trackerPanel);				
+			});
+			ellipseCheckbox.setBorder(BorderFactory.createEmptyBorder());
+			
 
 			flowpanel = new JPanel();
 			flowpanel.setOpaque(false);
+			flowpanel.add(ellipseLabel);
+			flowpanel.add(ellipseCheckbox);
 			flowpanel.add(evolveLabel);
 			flowpanel.add(evolveSpinner);
 			flowpanel.add(tetherLabel);
 			flowpanel.add(tetherSpinner);
 			flowpanel.add(acceptLabel);
 			flowpanel.add(acceptSpinner);
-			templateToolbar.add(templateLabel);
+			
+			templateToolbar.add(templateLabel);			
 			templateToolbar.add(flowpanel);
 
 			// create search toolbar
-			TrackerPanel trackerPanel = frame.getTrackerPanelForID(panelID);
+
 			searchToolbar = new JToolBar();
 			searchToolbar.setFloatable(false);
 			searchToolbar.addMouseListener(mouseOverListener);
@@ -2920,29 +2959,89 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				}
 				TFrame.repaintT(trackerPanel);
 			});
-			lookAheadCheckbox = new JCheckBox();
-			lookAheadCheckbox.addMouseListener(mouseOverListener);
-			lookAheadCheckbox.setOpaque(false);
-			lookAheadCheckbox.setSelected(lookAhead);
-			lookAheadCheckbox.addActionListener((e) -> {
-				lookAhead = lookAheadCheckbox.isSelected();
+			// 	searchAreaPolicy = LOOK_AHEAD
+
+			
+			lookAheadButton = new JRadioButton();
+			lookAheadButton.addMouseListener(mouseOverListener);
+			lookAheadButton.setOpaque(false);
+			lookAheadButton.setSelected(true);
+			lookAheadButton.addActionListener((e) -> {
+				searchAreaPolicy = LOOK_AHEAD;
 				setChanged();
 			});
-			autoSkipCheckbox = new JCheckBox();
-			autoSkipCheckbox.addMouseListener(mouseOverListener);
-			autoSkipCheckbox.setOpaque(false);
-			autoSkipCheckbox.setSelected(autoSkip);
-			autoSkipCheckbox.addActionListener((e) -> {
-				autoSkip = autoSkipCheckbox.isSelected();
+			followButton = new JRadioButton();
+			followButton.addMouseListener(mouseOverListener);
+			followButton.setOpaque(false);
+			followButton.setSelected(true);
+			followButton.addActionListener((e) -> {
+				searchAreaPolicy = FOLLOW;
+				setChanged();
 			});
+			fixedButton = new JRadioButton();
+			fixedButton.addMouseListener(mouseOverListener);
+			fixedButton.setOpaque(false);
+			fixedButton.setSelected(true);
+			fixedButton.addActionListener((e) -> {
+				searchAreaPolicy = FIXED;
+				setChanged();
+			});
+			ButtonGroup group = new ButtonGroup();
+			group.add(lookAheadButton);
+			group.add(followButton);
+			group.add(fixedButton);
+
 			flowpanel = new JPanel();
 			flowpanel.setBorder(BorderFactory.createEmptyBorder(1, 0, 0, 0));
 			flowpanel.setOpaque(false);
+			flowpanel.add(lookAheadButton);
+			flowpanel.add(followButton);
+			flowpanel.add(fixedButton);
+			flowpanel.add(TToolBar.getSeparator());
 			flowpanel.add(oneDCheckbox);
-			flowpanel.add(lookAheadCheckbox);
-			flowpanel.add(autoSkipCheckbox);
 			searchToolbar.add(searchLabel);
 			searchToolbar.add(flowpanel);
+			
+			// create stopOnToolbar
+			stopOnToolbar = new JToolBar();
+			stopOnToolbar.setFloatable(false);
+			stopOnToolbar.addMouseListener(mouseOverListener);
+			stopOnLabel = new JLabel();
+			stopOnLabel.setOpaque(false);
+			stopOnLabel.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 6));
+			poorMatchButton = new JRadioButton();
+			poorMatchButton.addMouseListener(mouseOverListener);
+			poorMatchButton.setOpaque(false);
+			poorMatchButton.setSelected(true);
+			poorMatchButton.addActionListener((e) -> {
+				stopPolicy = ALWAYS_STOP;
+			});
+			noMatchButton = new JRadioButton();
+			noMatchButton.addMouseListener(mouseOverListener);
+			noMatchButton.setOpaque(false);
+			noMatchButton.setSelected(false);
+			noMatchButton.addActionListener((e) -> {
+				stopPolicy = STOP_NO_MATCH;
+			});
+			neverStopButton = new JRadioButton();
+			neverStopButton.addMouseListener(mouseOverListener);
+			neverStopButton.setOpaque(false);
+			neverStopButton.setSelected(false);
+			neverStopButton.addActionListener((e) -> {
+				stopPolicy = NEVER_STOP;				
+			});
+			group = new ButtonGroup();
+			group.add(poorMatchButton);
+			group.add(noMatchButton);
+			group.add(neverStopButton);
+			flowpanel = new JPanel();
+			flowpanel.setBorder(BorderFactory.createEmptyBorder(1, 0, 0, 0));
+			flowpanel.setOpaque(false);
+			flowpanel.add(poorMatchButton);
+			flowpanel.add(noMatchButton);
+			flowpanel.add(neverStopButton);
+			stopOnToolbar.add(stopOnLabel);
+			stopOnToolbar.add(flowpanel);
 
 			// create target toolbar
 			targetToolbar = new JToolBar();
@@ -3050,6 +3149,17 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			});
 			keyFrameButton.addKeyListener(kl);
 
+			copyDataButton = new JButton();
+			copyDataButton.addActionListener((e) -> {
+				// get match score data string
+				String matchScore = getMatchDataString();
+				// copy to the clipboard
+				Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+				StringSelection stringSelection = new StringSelection(matchScore);
+				clipboard.setContents(stringSelection, stringSelection);
+			});
+			copyDataButton.addKeyListener(kl);
+
 			// assemble content
 			infoPanel = new JPanel(new BorderLayout()) {
 				@Override
@@ -3069,6 +3179,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			JPanel controlPanel = new JPanel(new GridLayout(0, 1));
 			controlPanel.add(templateToolbar);
 			controlPanel.add(searchToolbar);
+			controlPanel.add(stopOnToolbar);
 			controlPanel.add(targetToolbar);
 
 			northPanel = new JPanel(new BorderLayout());
@@ -3083,6 +3194,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			south.add(helpButton);
 			south.add(keyFrameButton);
 			south.add(deleteButton);
+			south.add(copyDataButton);
 			south.add(closeButton);
 
 			contentPane.add(northPanel, BorderLayout.NORTH);
@@ -3140,52 +3252,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		}
 
 		protected void startAction(ActionEvent e, ActionListener searchAction) {
-			if (hidePopup) {
-				popup.setVisible(false);
-				hidePopup = false;
-				return;
-			}
-			// set "neverPause" flag
-			neverPause = (e.getModifiers() & 0x01) == 1; // shift key down
-			if (neverPause && !stepping) {
-				// show popup menu
-				if (popup == null) {
-					popup = new JPopupMenu();
-					JMenuItem item = new JMenuItem(TrackerRes.getString("AutoTracker.Wizard.Menuitem.SearchFixed")); //$NON-NLS-1$
-					item.setToolTipText(TrackerRes.getString("AutoTracker.Wizard.MenuItem.SearchFixed.Tooltip")); //$NON-NLS-1$
-					item.addActionListener(searchAction);
-					item.addMouseListener(new MouseAdapter() {
-						@Override
-						public void mouseEntered(MouseEvent e) {
-							prepareForFixedSearch(true);
-						}
-
-						@Override
-						public void mouseExited(MouseEvent e) {
-							prepareForFixedSearch(false);
-						}
-					});
-					popup.add(item);
-					popup.addSeparator();
-					item = new JMenuItem(TrackerRes.getString("AutoTracker.Wizard.Menuitem.CopyMatchScores")); //$NON-NLS-1$
-					item.setToolTipText(TrackerRes.getString("AutoTracker.Wizard.MenuItem.CopyMatchScores.Tooltip")); //$NON-NLS-1$
-					item.addActionListener((e2) -> {
-						hidePopup = false;
-						// get match score data string
-						String matchScore = getMatchDataString();
-						// copy to the clipboard
-						Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-						StringSelection stringSelection = new StringSelection(matchScore);
-						clipboard.setContents(stringSelection, stringSelection);
-					});
-					popup.add(item);
-				}
-				hidePopup = true;
-				FontSizer.setFonts(popup, FontSizer.getLevel());
-				popup.show(startButton, 0, startButton.getHeight());
-			} else {
-				searchAction.actionPerformed(e);
-			}
+			searchAction.actionPerformed(e);
 		}
 
 		protected void deleteLaterAction() {
@@ -3449,6 +3516,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			setTitle(title);
 			frameLabel.setText(TrackerRes.getString("AutoTracker.Label.Frame") + " " + n + ":"); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
 			searchLabel.setText(TrackerRes.getString("AutoTracker.Label.Search") + ":"); //$NON-NLS-1$ //$NON-NLS-2$
+			stopOnLabel.setText(TrackerRes.getString("AutoTracker.Label.Autostop") + ":"); //$NON-NLS-1$ //$NON-NLS-2$
 			targetLabel.setText(TrackerRes.getString("AutoTracker.Label.Target") + ":"); //$NON-NLS-1$ //$NON-NLS-2$
 			templateLabel.setText(TrackerRes.getString("AutoTracker.Label.Template") + ":"); //$NON-NLS-1$ //$NON-NLS-2$
 			acceptLabel.setText(TrackerRes.getString("AutoTracker.Label.Automark")); //$NON-NLS-1$
@@ -3462,18 +3530,30 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			tetherLabel.setText(TrackerRes.getString("AutoTracker.Label.Tether")); //$NON-NLS-1$
 			tetherLabel.setToolTipText(TrackerRes.getString("AutoTracker.Label.Tether.Tooltip")); //$NON-NLS-1$
 			tetherSpinner.setToolTipText(TrackerRes.getString("AutoTracker.Label.Tether.Tooltip")); //$NON-NLS-1$
+			ellipseLabel.setText(TrackerRes.getString("AutoTracker.Label.Ellipse")); //$NON-NLS-1$
+			ellipseLabel.setToolTipText(TrackerRes.getString("AutoTracker.Label.Ellipse.Tooltip")); //$NON-NLS-1$
+			ellipseCheckbox.setToolTipText(TrackerRes.getString("AutoTracker.Label.Ellipse.Tooltip")); //$NON-NLS-1$
 			closeButton.setText(TrackerRes.getString("Dialog.Button.Close")); //$NON-NLS-1$
 			helpButton.setText(TrackerRes.getString("Dialog.Button.Help")); //$NON-NLS-1$
+			copyDataButton.setText(TrackerRes.getString("AutoTracker.Wizard.Menuitem.CopyMatchScores")); //$NON-NLS-1$
+			copyDataButton.setToolTipText(TrackerRes.getString("AutoTracker.Wizard.MenuItem.CopyMatchScores.Tooltip")); //$NON-NLS-1$
 			acceptButton.setText(TrackerRes.getString("AutoTracker.Wizard.Button.Accept")); //$NON-NLS-1$
 			keyFrameButton.setText(TrackerRes.getString("AutoTracker.Wizard.Button.ShowKeyFrame")); //$NON-NLS-1$
 			deleteButton.setText(TrackerRes.getString("AutoTracker.Wizard.Button.Delete")); //$NON-NLS-1$
 			oneDCheckbox.setText(TrackerRes.getString("AutoTracker.Wizard.Checkbox.XAxis")); //$NON-NLS-1$
 			oneDCheckbox.setToolTipText(TrackerRes.getString("AutoTracker.Wizard.Checkbox.XAxis.Tooltip")); //$NON-NLS-1$
-			lookAheadCheckbox.setText(TrackerRes.getString("AutoTracker.Wizard.Checkbox.LookAhead")); //$NON-NLS-1$
-			lookAheadCheckbox.setToolTipText(TrackerRes.getString("AutoTracker.Wizard.Checkbox.LookAhead.Tooltip")); //$NON-NLS-1$
-			autoSkipCheckbox.setText(TrackerRes.getString("AutoTracker.Wizard.Checkbox.SkipPossibleMatches")); //$NON-NLS-1$
-			autoSkipCheckbox
-					.setToolTipText(TrackerRes.getString("AutoTracker.Wizard.Checkbox.SkipPossibleMatches.Tooltip")); //$NON-NLS-1$
+			lookAheadButton.setText(TrackerRes.getString("AutoTracker.RadioButton.LookAhead")); //$NON-NLS-1$
+			lookAheadButton.setToolTipText(TrackerRes.getString("AutoTracker.Wizard.Checkbox.LookAhead.Tooltip")); //$NON-NLS-1$
+			followButton.setText(TrackerRes.getString("AutoTracker.RadioButton.Follow")); //$NON-NLS-1$
+			followButton.setToolTipText(TrackerRes.getString("AutoTracker.RadioButton.Follow.Tooltip")); //$NON-NLS-1$
+			fixedButton.setText(TrackerRes.getString("AutoTracker.RadioButton.Fixed")); //$NON-NLS-1$
+			fixedButton.setToolTipText(TrackerRes.getString("AutoTracker.RadioButton.Fixed.Tooltip")); //$NON-NLS-1$
+			poorMatchButton.setText(TrackerRes.getString("AutoTracker.RadioButton.PoorMatch")); //$NON-NLS-1$
+			poorMatchButton.setToolTipText(TrackerRes.getString("AutoTracker.RadioButton.PoorMatch.Tooltip")); //$NON-NLS-1$
+			noMatchButton.setText(TrackerRes.getString("AutoTracker.RadioButton.NoMatch")); //$NON-NLS-1$
+			noMatchButton.setToolTipText(TrackerRes.getString("AutoTracker.RadioButton.NoMatch.Tooltip")); //$NON-NLS-1$
+			neverStopButton.setText(TrackerRes.getString("AutoTracker.RadioButton.NeverStop")); //$NON-NLS-1$
+			neverStopButton.setToolTipText(TrackerRes.getString("AutoTracker.RadioButton.NeverStop.Tooltip")); //$NON-NLS-1$
 			matchImageLabel
 					.setText(frameData.getMatchIcon() == null ? null : TrackerRes.getString("AutoTracker.Label.Match")); //$NON-NLS-1$
 			templateImageLabel
@@ -3530,7 +3610,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			int n = trackerPanel().getFrameNumber();
 			FrameData frameData = getOrCreateFrameData(n);
 			TTrack track = getTrack();
-
+			
 			// enable the search buttons
 			int code = getStatusCode(n);
 			KeyFrameData keyFrameData = frameData.getKeyFrameData();
@@ -3543,6 +3623,14 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			searchThisButton.setName(initialized && notStepping && canSearchThis ? null : "back");
 			searchThisButton.setEnabled(trackerPanel().getStepNumber() > 0);
 			searchNextButton.setEnabled(initialized && canStep() && notStepping);
+
+			// refresh the ellipseCheckbox			
+			boolean isKeyFrame = isOnKeyFrame(n) || !initialized;
+			ellipseCheckbox.setEnabled(isKeyFrame);
+			ellipseLabel.setEnabled(isKeyFrame);
+			if (keyFrameData != null) {
+				ellipseCheckbox.setSelected(keyFrameData.getMask() instanceof Ellipse2D.Double);
+			}
 
 			// refresh template image labels and panel
 			if (templateImageLabel.getIcon() == null && matchImageLabel.getIcon() == null) {
@@ -3577,6 +3665,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 
 			deleteButton.setEnabled(deleteButtonEnabled);
 			keyFrameButton.setEnabled(frameData.hasKeyFrames());
+			
 
 			// rebuild followup panel
 			followupPanel.removeAll();
@@ -3800,7 +3889,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			}
 
 			// colored instructions if mouseOverObj not null
-			textPane.setForeground(new Color(140, 80, 80));
+			textPane.setForeground(Color.DARK_GRAY);
 			if (mouseOverObj == templateToolbar || mouseOverObj == imageToolbar) {
 				textPane.setText(getTemplateInstructions());
 				return;
@@ -3811,6 +3900,10 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			}
 			if (mouseOverObj == searchToolbar) {
 				textPane.setText(getSearchInstructions());
+				return;
+			}
+			if (mouseOverObj == stopOnToolbar) {
+				textPane.setText(getStopInstructions());
 				return;
 			}
 
@@ -3828,15 +3921,13 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		 */
 		protected String getTemplateInstructions() {
 			StringBuffer buf = new StringBuffer();
-			buf.append(TrackerRes.getString("AutoTracker.Info.Mask1")); //$NON-NLS-1$
+			buf.append(TrackerRes.getString("AutoTracker.Info.Template")); //$NON-NLS-1$
 			buf.append(" "); //$NON-NLS-1$
 			buf.append(TrackerRes.getString("AutoTracker.Info.GetStarted")); //$NON-NLS-1$
 			buf.append("\n\n"); //$NON-NLS-1$
-			buf.append(TrackerRes.getString("AutoTracker.Info.Mask2")); //$NON-NLS-1$
-			buf.append("\n\n"); //$NON-NLS-1$
 			buf.append(TrackerRes.getString("AutoTracker.Info.Title.Settings")); //$NON-NLS-1$
 			buf.append(": "); //$NON-NLS-1$
-			buf.append(TrackerRes.getString("AutoTracker.Info.Mask.Instructions")); //$NON-NLS-1$
+			buf.append(TrackerRes.getString("AutoTracker.Info.Template.Instructions")); //$NON-NLS-1$
 			buf.append("\n\n"); //$NON-NLS-1$
 			buf.append(TrackerRes.getString("AutoTracker.Info.Title.Tip")); //$NON-NLS-1$
 			buf.append(": "); //$NON-NLS-1$
@@ -3882,6 +3973,21 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		}
 
 		/**
+		 * Returns the stop instructions.
+		 * 
+		 * @return the instructions
+		 */
+		protected String getStopInstructions() {
+			StringBuffer buf = new StringBuffer();
+			buf.append(TrackerRes.getString("AutoTracker.Info.Stop")); //$NON-NLS-1$
+			buf.append("\n\n"); //$NON-NLS-1$
+			buf.append(TrackerRes.getString("AutoTracker.Info.Title.Settings")); //$NON-NLS-1$
+			buf.append(": "); //$NON-NLS-1$
+			buf.append(TrackerRes.getString("AutoTracker.Info.Stop.Instructions")); //$NON-NLS-1$
+			return buf.toString();
+		}
+
+		/**
 		 * Returns the status text for a given frame number and status code.
 		 * 
 		 * @param code               the status code (integer 0-9)
@@ -3892,6 +3998,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		protected String getStatusInfo(int code, int n, double[] peakWidthAndHeight) {
 			StringBuffer buf = new StringBuffer();
 			buf.append(TrackerRes.getString("AutoTracker.Info.Frame") + " " + n); //$NON-NLS-1$ //$NON-NLS-2$
+			
 			switch (code) {
 			case STATUS_KEY_FRAME: // keyframe
 				textPane.setForeground(Color.blue);
@@ -3911,7 +4018,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				buf.append(TrackerRes.getString("AutoTracker.Info.Match")); //$NON-NLS-1$
 				break;
 			case STATUS_POSSIBLE_MATCH_NOT_MARKED: // possible match was found, not marked
-				textPane.setForeground(Color.red);
+				textPane.setForeground(RUST);
 				buf.append(" (" + TrackerRes.getString("AutoTracker.Info.MatchScore")); //$NON-NLS-1$ //$NON-NLS-2$
 				buf.append(" " + format.format(peakWidthAndHeight[1]) + "): "); //$NON-NLS-1$ //$NON-NLS-2$
 				if (lineSpread >= 0) {
@@ -4026,36 +4133,6 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				break;
 			}
 			return buf.toString();
-		}
-
-		protected void prepareForFixedSearch(boolean fixed) {
-			ignoreChanges = true;
-			if (fixed) {
-				prevAutoskip = autoSkipCheckbox.isSelected();
-				prevEvolution = (Integer) evolveSpinner.getValue();
-				prevLookAhead = lookAheadCheckbox.isSelected();
-				prevOneD = oneDCheckbox.isSelected();
-				isPrevValid = true;
-				evolveSpinner.setValue(0);
-				lookAheadCheckbox.setSelected(false);
-				oneDCheckbox.setSelected(false);
-				autoSkipCheckbox.setSelected(true);
-			} else if (isPrevValid) {
-				isPrevValid = false;
-				evolveSpinner.setValue(prevEvolution);
-				lookAheadCheckbox.setSelected(prevLookAhead);
-				oneDCheckbox.setSelected(prevOneD);
-				autoSkipCheckbox.setSelected(prevAutoskip);
-			}
-			evolveSpinner.setEnabled(!fixed);
-			evolveLabel.setEnabled(!fixed);
-			tetherLabel.setEnabled(!fixed);
-			lookAheadCheckbox.setEnabled(!fixed);
-			oneDCheckbox.setEnabled(!fixed);
-			autoSkipCheckbox.setEnabled(!fixed);
-			JFormattedTextField tf = ((JSpinner.DefaultEditor) evolveSpinner.getEditor()).getTextField();
-			tf.setDisabledTextColor(fixed ? Color.GRAY.brighter() : Color.BLACK);
-			ignoreChanges = false;
 		}
 
 		/**
