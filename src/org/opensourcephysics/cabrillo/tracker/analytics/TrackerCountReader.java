@@ -54,7 +54,7 @@ public class TrackerCountReader extends JFrame {
 			"6.1.0", "6.0.10", "6.0.9",    //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ 
 			"6.0.8", "6.0.7", "6.0.6",   //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ 
 			"6.0.5", "6.0.4", "6.0.3", "6.0.2",   //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ 
-			"6.0.1", "6.0.0", "5.4.0", "5.3.7",   //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$
+			"6.0.1", "6.0.0", "5.5.0", "5.4.0", "5.3.7",   //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$
 			"5.3.6", "5.3.5", "5.3.4", "5.3.3",   //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$
 			"5.3.2", "5.3.1", "5.3.0",   //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$
 			"5.2.10", "5.2.9", "5.2.8",   //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$
