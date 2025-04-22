@@ -114,7 +114,7 @@ public class TToolBar extends JToolBar implements Disposable, PropertyChangeList
 	final protected static Icon xmassOffIcon, xmassOnIcon;
 	final protected static Icon fontSizeIcon;
 	final protected static Icon memoryIcon, redMemoryIcon;
-	final protected static Icon autotrackerOffIcon, autotrackerOnIcon, autotrackerDisabledIcon;
+	final protected static Icon autotrackerOffIcon, autotrackerOnIcon;
 	final protected static Icon infoIcon, infoOnIcon, refreshIcon, htmlIcon, htmlDisabledIcon;
 	final protected static Icon[] trailIcons = new Icon[4];
 	final protected static int[] stretchValues = new int[] { 1, 2, 3, 4, 6, 8, 12, 16, 24, 32 };
@@ -251,7 +251,6 @@ public class TToolBar extends JToolBar implements Disposable, PropertyChangeList
 		fontSizeIcon = Tracker.getResourceIcon("font_size.gif", true); //$NON-NLS-1$
 		autotrackerOffIcon = Tracker.getResourceIcon("autotrack_off.gif", true); //$NON-NLS-1$
 		autotrackerOnIcon = Tracker.getResourceIcon("autotrack_on.gif", true); //$NON-NLS-1$
-		autotrackerDisabledIcon = Tracker.getResourceIcon("autotrack_disabled.gif", true); //$NON-NLS-1$
 		infoIcon = Tracker.getResourceIcon("info.gif", true); //$NON-NLS-1$
 		infoOnIcon = Tracker.getResourceIcon("info_on.gif", true); //$NON-NLS-1$
 		refreshIcon = Tracker.getResourceIcon("refresh.gif", true); //$NON-NLS-1$
@@ -458,7 +457,6 @@ public class TToolBar extends JToolBar implements Disposable, PropertyChangeList
 		
 		// autotracker button
 		autotrackerButton = new TButton(autotrackerOffIcon, autotrackerOnIcon);
-		autotrackerButton.setDisabledIcon(autotrackerDisabledIcon);
 		autotrackerButton.addMouseListener(new MouseAdapter() {
 
 			@Override
