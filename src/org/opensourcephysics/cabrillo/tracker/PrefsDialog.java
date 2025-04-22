@@ -138,7 +138,7 @@ public class PrefsDialog extends JDialog {
 	protected IntegerField memoryField;
 	protected JLabel memoryLabel, recentSizeLabel, lookFeelLabel, cacheLabel, versionLabel, runLabel;
 	protected JCheckBox defaultMemoryCheckbox, hintsCheckbox, vidWarningCheckbox, showGapsCheckbox, xuggleErrorCheckbox,
-			variableDurationCheckBox, resetToStep0Checkbox, autofillCheckbox;
+			variableDurationCheckBox, resetToStep0Checkbox, autofillCheckbox, skippedStepsCheckbox;
 	protected int memorySize = Tracker.requestedMemorySize;
 	protected JSpinner recentSizeSpinner, runSpinner;
 	protected JComboBox<String> lookFeelDropdown, languageDropdown, jreDropdown, trailLengthDropdown,
@@ -1012,7 +1012,7 @@ public class PrefsDialog extends JDialog {
 		});
 
 		warningsNorthPanel.add(variableDurationCheckBox);
-
+		
 		// set selected states of engine buttons AFTER creating the xugglefast,
 		// xuggleslow and warnxuggle buttons
 //		if (MovieFactory.hasVideoEngine()) {
@@ -1111,6 +1111,17 @@ public class PrefsDialog extends JDialog {
 			}
 		});
 		dataGapSubPanel.add(autofillCheckbox);
+		
+		skippedStepsCheckbox = new JCheckBox();
+		skippedStepsCheckbox.setOpaque(false);
+		skippedStepsCheckbox.setSelected(Tracker.warnSkippedStep);
+		skippedStepsCheckbox.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				Tracker.warnSkippedStep = skippedStepsCheckbox.isSelected();
+			}
+		});
+		dataGapSubPanel.add(skippedStepsCheckbox);
 		
 		// footprint and trail length subpanels side by side in horz box
 		horz = Box.createHorizontalBox();
@@ -1665,6 +1676,7 @@ public class PrefsDialog extends JDialog {
 			xuggleFastButton.setText(TrackerRes.getString("PrefsDialog.Xuggle.Fast")); //$NON-NLS-1$
 			xuggleSlowButton.setText(TrackerRes.getString("PrefsDialog.Xuggle.Slow")); //$NON-NLS-1$
 			vidWarningCheckbox.setText(TrackerRes.getString("PrefsDialog.Checkbox.WarnIfNoEngine")); //$NON-NLS-1$
+			skippedStepsCheckbox.setText(TrackerRes.getString("PrefsDialog.Checkbox.WarnSkippedSteps")); //$NON-NLS-1$
 			xuggleErrorCheckbox.setText(TrackerRes.getString("PrefsDialog.Checkbox.WarnIfXuggleError")); //$NON-NLS-1$
 //	    videoTypeSubPanelBorder.setTitle(TrackerRes.getString("PrefsDialog.VideoPref.BorderTitle")); //$NON-NLS-1$
 			xuggleSpeedSubPanelBorder.setTitle(TrackerRes.getString("PrefsDialog.Xuggle.Speed.BorderTitle")); //$NON-NLS-1$
@@ -1991,6 +2003,7 @@ public class PrefsDialog extends JDialog {
 			vidWarningCheckbox.setSelected(Tracker.warnNoVideoEngine);
 			variableDurationCheckBox.setSelected(Tracker.warnVariableDuration);
 			xuggleErrorCheckbox.setSelected(Tracker.warnXuggleError);
+			skippedStepsCheckbox.setSelected(Tracker.warnSkippedStep);
 
 			// memory size
 			defaultMemoryCheckbox.setSelected(Tracker.preferredMemorySize < 0);

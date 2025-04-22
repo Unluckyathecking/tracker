@@ -358,7 +358,6 @@ public abstract class TTrack extends OSPRuntime.Supported implements Interactive
 	protected static JTextPane skippedStepWarningTextpane;
 	protected static JCheckBox skippedStepWarningCheckbox;
 	protected static JButton closeButton;
-	protected static boolean skippedStepWarningOn = true;
 	protected static NameDialog nameDialog;
 	protected static int nextID = 1;
 	// instance fields
@@ -3097,7 +3096,7 @@ public abstract class TTrack extends OSPRuntime.Supported implements Interactive
 			skippedStepWarningDialog.addWindowListener(new WindowAdapter() {
 				@Override
 				public void windowClosing(WindowEvent e) {
-					skippedStepWarningOn = !skippedStepWarningCheckbox.isSelected();
+					Tracker.warnSkippedStep = !skippedStepWarningCheckbox.isSelected();
 				}
 			});
 			JPanel contentPane = new JPanel(new BorderLayout());
@@ -3116,7 +3115,7 @@ public abstract class TTrack extends OSPRuntime.Supported implements Interactive
 			closeButton.addActionListener(new ActionListener() {
 				@Override
 				public void actionPerformed(ActionEvent e) {
-					skippedStepWarningOn = !skippedStepWarningCheckbox.isSelected();
+					Tracker.warnSkippedStep = !skippedStepWarningCheckbox.isSelected();
 					skippedStepWarningDialog.setVisible(false);
 				}
 			});

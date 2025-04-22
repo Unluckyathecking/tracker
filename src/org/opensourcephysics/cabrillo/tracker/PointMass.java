@@ -549,7 +549,7 @@ public class PointMass extends TTrack {
 			}
 			firePropertyChange(PROPERTY_TTRACK_STEP, HINT_STEP_ADDED_OR_REMOVED, new Integer(n)); // $NON-NLS-1$
 			// check independent point masses for skipped steps during marking
-			if (skippedStepWarningOn && steps.isPreceded(n) && tp != null && !isDependent()
+			if (Tracker.warnSkippedStep && steps.isPreceded(n) && tp != null && !isDependent()
 					&& !AutoTracker.mayLeaveGaps()) {
 				VideoClip clip = tp.getPlayer().getVideoClip();
 				int stepNumber = clip.frameToStep(n);
@@ -2538,7 +2538,7 @@ public class PointMass extends TTrack {
 				updateDerivatives();
 				invalidateData(null);
 				int stepSize = tp.getPlayer().getVideoClip().getStepSize();
-				if (skippedStepWarningOn && stepSizeWhenFirstMarked > 1 && stepSize != stepSizeWhenFirstMarked) {
+				if (Tracker.warnSkippedStep && stepSizeWhenFirstMarked > 1 && stepSize != stepSizeWhenFirstMarked) {
 					JDialog warning = getStepSizeWarningDialog();
 					if (warning != null)
 						warning.setVisible(true);
