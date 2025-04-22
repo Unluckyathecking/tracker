@@ -136,10 +136,8 @@ public class TTrackBar extends JToolBar implements Disposable, PropertyChangeLis
 								@Override
 								public void actionPerformed(ActionEvent e) {
 									// test action goes here	
-									TrackerPanel trackerPanel = frame.getSelectedPanel();			
+									TrackerPanel trackerPanel = frame.getSelectedPanel();
 									testIndex++;
-									boolean b = testIndex%2 == 0;
-									frame.setFrameBlocker(b, trackerPanel);
 									testButton.setEnabled(true);
 
 
