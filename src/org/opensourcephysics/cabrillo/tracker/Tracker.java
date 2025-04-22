@@ -326,6 +326,7 @@ public class Tracker {
 	static int checkForUpgradeInterval = 0;
 	static int preferredFontLevel = 0, preferredFontLevelPlus = 0;
 	static boolean isRadians, isXuggleFast;
+	static boolean warnSkippedStep = true;
 	static boolean warnXuggleError = true;
 	static boolean warnNoVideoEngine = !OSPRuntime.isJS;
 	static boolean warnVariableDuration = true;
@@ -2641,6 +2642,8 @@ public class Tracker {
 					control.setValue("warn_variable_frame_duration", warnVariableDuration); //$NON-NLS-1$
 				if (!warnXuggleError) // true by default
 					control.setValue("warn_xuggle_error", warnXuggleError); //$NON-NLS-1$
+				if (!warnSkippedStep) // true by default
+					control.setValue("warn_skipped_step", warnSkippedStep); //$NON-NLS-1$
 				// always save preferred tracker.jar
 				String jar = preferredTrackerJar == null ? "tracker.jar" : preferredTrackerJar; //$NON-NLS-1$
 				if (!new File(trackerHome, jar).exists())
@@ -2771,6 +2774,8 @@ public class Tracker {
 					warnNoVideoEngine = control.getBoolean("warn_no_engine"); //$NON-NLS-1$
 				if (control.getPropertyNamesRaw().contains("warn_xuggle_error")) //$NON-NLS-1$
 					warnXuggleError = control.getBoolean("warn_xuggle_error"); //$NON-NLS-1$
+				if (control.getPropertyNamesRaw().contains("warn_skipped_step")) //$NON-NLS-1$
+					warnSkippedStep = control.getBoolean("warn_skipped_step"); //$NON-NLS-1$
 				if (control.getPropertyNamesRaw().contains("warn_variable_frame_duration")) //$NON-NLS-1$
 					warnVariableDuration = control.getBoolean("warn_variable_frame_duration"); //$NON-NLS-1$
 				if (control.getPropertyNamesRaw().contains("show_hints")) { //$NON-NLS-1$

@@ -202,16 +202,12 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 		pixelLengthField.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				// pig still need to deal with keyframes???
-				
 				double pixelLength = pixelLengthField.getValue();
 				int n = tp.getFrameNumber();
 				if (tp.getCoords().getScaleX(n) != 1/pixelLength) {
 					XMLControl trackControl = new XMLControlElement(TapeMeasure.this);
 					XMLControl coordsControl = new XMLControlElement(tp.getCoords());
-					isStepChangingScale = true;
 					tp.getCoords().setScaleXY(n, 1/pixelLength, 1/pixelLength);
-					isStepChangingScale = false;
 					Undo.postTrackAndCoordsEdit(TapeMeasure.this, trackControl, coordsControl);
 				}
 				pixelLengthField.requestFocusInWindow();
@@ -435,6 +431,7 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 		boolean enabled = isFieldsEnabled();
 		magField.setEnabled(enabled);
 		angleField.setEnabled(enabled);
+		pixelLengthField.setEnabled(enabled);
 	}
 
 	/**
