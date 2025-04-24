@@ -2964,12 +2964,25 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			ellipseLabel = new JLabel();
 			ellipseLabel.setOpaque(false);
 			ellipseLabel.addMouseListener(mouseOverListener);
+			ellipseLabel.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseClicked(MouseEvent e) {
+					ellipseButton.doClick(0);
+
+				}
+			});
 			ellipseLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 6));
 			ellipseLabel.setIcon(circleIcon);
 			ellipseLabel.setDisabledIcon(circleDisabledIcon);
 			rectLabel = new JLabel();
 			rectLabel.setOpaque(false);
 			rectLabel.addMouseListener(mouseOverListener);
+			rectLabel.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseClicked(MouseEvent e) {
+					rectButton.doClick(0);
+				}
+			});
 			rectLabel.setIcon(squareIcon);
 			rectLabel.setDisabledIcon(squareDisabledIcon);
 			rectLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 12));
