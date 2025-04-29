@@ -3221,7 +3221,7 @@ public abstract class TTrack extends OSPRuntime.Supported implements Interactive
 	protected class StepArray {
 
 		// instance fields
-		protected int delta = 5;
+		protected int delta = 10;
 		protected Step[] array = new Step[delta];
 		private boolean autofill = false;
 
@@ -3243,18 +3243,6 @@ public abstract class TTrack extends OSPRuntime.Supported implements Interactive
 			step.n = 0;
 			array[0] = step;
 			fill(array, step);
-		}
-
-		/**
-		 * Constructs an autofill StepArray and fills the array with clones of the
-		 * specified step.
-		 *
-		 * @param step      the step to fill the array with
-		 * @param increment the array sizing increment
-		 */
-		public StepArray(Step step, int increment) {
-			this(step);
-			delta = increment;
 		}
 
 		/**
