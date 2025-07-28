@@ -661,6 +661,21 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 	}
 
 	/**
+	 * Returns true if the step at the specified frame number is complete. Points
+	 * may be created or remarked if false.
+	 *
+	 * @param n the frame number
+	 * @return <code>true</code> if the step is complete, otherwise false
+	 */
+	@Override
+	public boolean isStepComplete(int n) {
+		if (isIncomplete) {
+			return false;
+		}
+		return super.isStepComplete(n);
+	}
+
+	/**
 	 * Gets the length of the steps created by this track.
 	 *
 	 * @return the footprint length
