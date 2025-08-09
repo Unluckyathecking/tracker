@@ -369,6 +369,12 @@ public class TableTrackView extends TrackView {
 
 	@Override
 	public void refresh(int frameNumber, int mode) {
+		
+		forceRefresh = false; // set to false by DB
+		if (!forceRefresh && !isRefreshEnabled() || !viewParent.isViewPaneVisible())
+			return;
+		forceRefresh = false;
+				
 		if (mode == DataTable.MODE_TRACK_CHOOSE) {
 			FontSizer.setFonts(columnsDialogButton);
 			FontSizer.setFonts(gapsButton);
@@ -386,16 +392,7 @@ public class TableTrackView extends TrackView {
 			}
 			
 		}
-		forceRefresh = true; // for now, at least
-
-		if (!forceRefresh && !isRefreshEnabled() || !viewParent.isViewPaneVisible())
-			return;
-
-		// OSPLog.debug("TableTrackView.refresh " + myID + " " +
-		// Integer.toHexString(mode) + " "+ frameNumber + " " + isRefreshEnabled() + " "
-		// + trackerPanel.getPlayer().getStepNumber());
-
-		forceRefresh = false;
+		
 		if (Tracker.timeLogEnabled)
 			Tracker.logTime(getClass().getSimpleName() + hashCode() + " refresh " + frameNumber); //$NON-NLS-1$
 		dataTable.clearSelection();
