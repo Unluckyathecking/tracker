@@ -223,7 +223,7 @@ public class Tracker {
 
 	// for testing
 	static boolean testOn = false;
-	
+	static double testVal = 0;
 	private static String testString;
 
 	// define static fields
