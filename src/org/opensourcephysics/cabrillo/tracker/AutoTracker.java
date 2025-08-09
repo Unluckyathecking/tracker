@@ -445,6 +445,13 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		TrackerPanel trackerPanel = frame.getTrackerPanelForID(panelID);
 		trackerPanel.setSelectedTrack(track);
 		int n = trackerPanel.getFrameNumber();
+		
+//		double millis = System.currentTimeMillis();
+//		double delta = millis - Tracker.testVal;
+//		Tracker.testVal = millis;
+//		System.out.println("pig frame "+n+" "+delta);
+//		System.out.println();
+		
 		FrameData frameData = getOrCreateFrameData(n);
 		KeyFrameData keyFrameData = frameData.getKeyFrameData();
 		if (keyFrameData != null && !track.isStepComplete(n)) {
@@ -2775,10 +2782,16 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			startButton = new JButton();
 			startButton.setDisabledIcon(graySearchIcon);
 			final ActionListener searchAction = (e) -> {
+				TrackerPanel tp = trackerPanel();
 				if (stepping) {
+					boolean b = Boolean.parseBoolean(startButton.getName());
+					tp.setAutoRefresh(b);
 					stop(false, false); // stop after the next search
-				} else
+				} else {
+					startButton.setName(String.valueOf(tp.isAutoRefresh()));
+					tp.setAutoRefresh(false);
 					search(true, true); // search this frame and keep stepping
+				}
 			};
 
 			startButton.addActionListener((e) -> {
