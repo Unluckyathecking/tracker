@@ -3609,7 +3609,9 @@ public abstract class TTrack extends OSPRuntime.Supported implements Interactive
 			// data functions
 			if (track.tp != null) {
 				ArrayList<Dataset> list = new ArrayList<Dataset>();
+				track.refreshDataLater = true;
 				DatasetManager data = track.getData(track.tp);
+				track.refreshDataLater = false;
 				ArrayList<Dataset> datasets = data.getDatasetsRaw();
 				for (int i = 0, n = datasets.size(); i < n; i++) {
 					Dataset dataset = datasets.get(i);

@@ -178,7 +178,9 @@ public abstract class TrackView extends JScrollPane implements PropertyChangeLis
 			mode = DataTable.MODE_TRACK_SELECTEDPOINT;
 			break;
 		case TTrack.PROPERTY_TTRACK_STEPS:
-			mode = DataTable.MODE_TRACK_STEPS;
+			mode = TTrack.HINT_STEPS_SELECTED == e.getOldValue()?
+					DataTable.MODE_TRACK_SELECTEDPOINT:
+					DataTable.MODE_TRACK_STEPS;
 			break;
 		case TrackerPanel.PROPERTY_TRACKERPANEL_LOADED:
 			mode = DataTable.MODE_TRACK_LOADED;

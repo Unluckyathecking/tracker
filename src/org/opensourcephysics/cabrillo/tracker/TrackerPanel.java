@@ -877,10 +877,6 @@ public class TrackerPanel extends VideoPanel implements Scrollable {
 		// set font level
 		track.setFontLevel(FontSizer.getLevel());
 
-		// notify views, also TrackControl
-		// note that this callback will 
-		firePropertyChange(PROPERTY_TRACKERPANEL_TRACK, null, track); // to views //$NON-NLS-1$
-
 		// set default NumberField format patterns
 		if (frame != null) {
 			track.setInitialFormatPatterns(this);
@@ -892,12 +888,15 @@ public class TrackerPanel extends VideoPanel implements Scrollable {
 			autoTracker.setTrack(track);
 		}
 		
+		// display default views if not yet visible
 		if (firstTrack && isUserTrack && frame != null && !frame.areViewsVisible(TFrame.DEFAULT_VIEWS, this)) {
 			if (!TFrame.isPortraitOrientation)
 				frame.setDividerLocation(this, TFrame.SPLIT_MAIN_RIGHT, TFrame.DEFAULT_MAIN_DIVIDER); 			
 			else 
 				frame.setDividerLocation(this, TFrame.SPLIT_MAIN_BOTTOM, TFrame.DEFAULT_BOTTOM_DIVIDER); 
 		}
+		// notify views and TrackControl AFTER displaying views
+		firePropertyChange(PROPERTY_TRACKERPANEL_TRACK, null, track); // to views //$NON-NLS-1$
 
 	}
 
@@ -943,7 +942,9 @@ public class TrackerPanel extends VideoPanel implements Scrollable {
 	 * @return the FunctionPanel
 	 */
 	protected FunctionPanel createFunctionPanel(TTrack track) {
+		track.refreshDataLater = true;
 		DatasetManager data = track.getData(this);
+		track.refreshDataLater = false;
 		FunctionPanel functionPanel = new DataFunctionPanel(data);
 		functionPanel.setIcon(track.getIcon(21, 16, "point")); //$NON-NLS-1$
 		final ParamEditor paramEditor = functionPanel.getParamEditor();
@@ -2729,7 +2730,8 @@ public class TrackerPanel extends VideoPanel implements Scrollable {
 		case TTrack.PROPERTY_TTRACK_STEP:
 		case TTrack.PROPERTY_TTRACK_STEPS: // from tracks //$NON-NLS-1$
 			track = (TTrack) e.getSource();
-			track.invalidateData(Boolean.FALSE);
+			if (e.getOldValue() != TTrack.HINT_STEPS_SELECTED)
+				track.invalidateData(Boolean.FALSE);
 			if (!track.isDependent()) { // ignore dependent tracks
 				changed = true;
 			}

@@ -1308,6 +1308,16 @@ public class CircleFitter extends TTrack {
 	}
 
 	@Override
+	public DatasetManager getData(TrackerPanel panel) {		
+		int frameCount = panel.getPlayer().getVideoClip().getFrameCount();
+		if (getSteps().length < frameCount) {
+			steps.setLength(frameCount);
+			dataValid = false;
+		}		
+		return super.getData(panel);
+	}
+
+	@Override
 	protected void refreshData(DatasetManager data, TrackerPanel trackerPanel) {
 		if (refreshDataLater || trackerPanel == null || data == null)
 			return;

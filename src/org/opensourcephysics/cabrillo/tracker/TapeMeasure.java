@@ -768,7 +768,7 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 		boolean canBeFixed = !lockedItem.isSelected() && (fixedScale || !isStickMode());
 		fixedItem.setEnabled(canBeFixed && step != null && step.worldLength > 0 && !isAttached());
 		fixedItem.setText(TrackerRes.getString("TapeMeasure.MenuItem.Fixed")); //$NON-NLS-1$
-		fixedItem.setSelected(isFixedPosition() && fixedScale);
+		fixedItem.setSelected(isFixedPosition() && (fixedScale|| !isStickMode()));
 		addFixedItem(menu);
 
 		// insert the attachments dialog item at beginning
@@ -986,7 +986,34 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 		}
 		return null;
 	}
+	
+	/**
+	 * Overrides TTrack getStep method.
+	 *
+	 * @param n the frame number
+	 * @return the step
+	 */
+	@Override
+	public Step getStep(int n) {
+		if (isStickMode()&& tp != null) {
+			int frameCount = tp.getPlayer().getVideoClip().getFrameCount();
+			if (getSteps().length < frameCount) {
+				steps.setLength(frameCount);
+			}	
+		}
+		return super.getStep(n);
+	}
 
+	@Override
+	public DatasetManager getData(TrackerPanel panel) {		
+		int frameCount = panel.getPlayer().getVideoClip().getFrameCount();
+		if (getSteps().length < frameCount) {
+			steps.setLength(frameCount);
+			dataValid = false;
+		}		
+		return super.getData(panel);
+	}
+			
 	/**
 	 * Refreshes the data.
 	 *
@@ -1023,9 +1050,10 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 		// look thru steps and get data for those included in clip
 		VideoPlayer player = trackerPanel.getPlayer();
 		VideoClip clip = player.getVideoClip();
-		int len = clip.getStepCount();
+		int len = clip.getStepCount();	
 		double[][] validData = new double[count + 1][len];
 		dataFrames.clear();
+
 		for (int i = 0; i < len; i++) {
 			int frame = clip.stepToFrame(i);
 			TapeStep step = (TapeStep) getStep(frame);
@@ -1261,6 +1289,7 @@ public class TapeMeasure extends InputTrack  implements MarkingRequired {
 	protected void refreshStep(Step step) {
 		if (step == null || isIncomplete)
 			return;
+		
 		int positionKey = 0, lengthKey = 0;
 		for (int i : keyFrames) {
 			if (i <= step.n)

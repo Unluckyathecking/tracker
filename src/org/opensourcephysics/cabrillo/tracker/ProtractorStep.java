@@ -455,8 +455,9 @@ protected Mark getMark(TrackerPanel trackerPanel) {
     double dx = d*Math.cos(theta);
     double dy = -d*Math.sin(theta);
     end2.setLocation(vertex.x+dx, vertex.y+dy);
-   repaint();
+    repaint();
 		Undo.postTrackEdit(protractor, state);
+		protractor.firePropertyChange(TTrack.PROPERTY_TTRACK_STEPS, null, null); // $NON-NLS-1$
   }
 
   /**
@@ -765,6 +766,8 @@ public String toString() {
 		@Override
 		public void setAdjusting(boolean adjusting, MouseEvent e) {
 			if (!adjusting && !isAdjusting())
+				return;
+			if (isAdjusting && prevX == x && prevY == y)
 				return;
 			super.setAdjusting(adjusting, e);
 			if (!adjusting) {

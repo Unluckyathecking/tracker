@@ -241,6 +241,12 @@ public class OffsetOrigin extends TTrack implements MarkingRequired {
 	 */
 	@Override
 	public Step getStep(int n) {
+		if (tp != null) {
+			int frameCount = tp.getPlayer().getVideoClip().getFrameCount();
+			if (getSteps().length < frameCount) {
+				steps.setLength(frameCount);
+			}	
+		}
 		OffsetOriginStep step = (OffsetOriginStep) steps.getStep(n);
 		refreshStep(step);
 		return step;

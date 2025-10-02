@@ -873,6 +873,8 @@ public class TapeStep extends Step {
 		public void setXY(double x, double y) {
 			if (getTrack().locked)
 				return;
+			if (x == prevX && y == prevY)
+				return;
 			if (tape.isStickMode() && isAdjusting()) {
 				prevX = x;
 				prevY = y;

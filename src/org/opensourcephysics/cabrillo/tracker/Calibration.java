@@ -287,6 +287,12 @@ public class Calibration extends TTrack implements MarkingRequired {
 	 */
 	@Override
 	public Step getStep(int n) {
+		if (tp != null) {
+			int frameCount = tp.getPlayer().getVideoClip().getFrameCount();
+			if (getSteps().length < frameCount) {
+				steps.setLength(frameCount);
+			}	
+		}
 		CalibrationStep step = (CalibrationStep) steps.getStep(n);
 		refreshStep(step);
 		return step;
