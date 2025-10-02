@@ -227,10 +227,11 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 
 
 	/*
-	 * trackFrameData maps tracks to indexFrameData which maps point index to
+	 * trackDataMap maps tracks to indexFrameData which maps point index to
 	 * frameData which maps frame number to individual FrameData objects
 	 */
 	private Map<TTrack, Map<Integer, Map<Integer, FrameData>>> trackDataMap = new HashMap<TTrack, Map<Integer, Map<Integer, FrameData>>>();
+	private Map<Integer, KeyFrameData> keyFrameMap = new TreeMap<Integer, KeyFrameData>();
 	private int lineSpread = -1; // positive for 1D, negative for 2D tracking
 	private boolean isInteracting;
 	private double[][] derivatives1 = new double[predictionLookback - 1][];
@@ -328,7 +329,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			track.addPropertyChangeListener(TTrack.PROPERTY_TTRACK_STEP, this); // $NON-NLS-1$
 			track.addListenerNCF(this);
 			track.setVisible(true);
-			TPoint[] searchPts = getPanelFrameData().getSearchPoints(true);
+			TPoint[] searchPts = getCurrentFrameData().getSearchPoints(true);
 			if (searchPts != null)
 				setSearchPoints(searchPts[0], searchPts[1]);
 		} else {
@@ -358,7 +359,8 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		searchCenter.setLocation(x, y);
 		searchCorner.setLocation(x + defaultSearchSize[0], y + defaultSearchSize[1]);
 		KeyFrameData keyFrameData = new KeyFrameData(p, mask, target);
-		getTrackTargetIndexToFrameDataMap().put(n, keyFrameData);
+		getFrameNumberToFrameDataMap().put(n, keyFrameData);
+		keyFrameMap.put(n, keyFrameData);
 		clearSearchPointsDownstream();
 		refreshSearchRect();
 		refreshKeyFrame(keyFrameData, true);
@@ -382,7 +384,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 * @param keepGoing     true to continue stepping after the first search
 	 */
 	protected void search(boolean startWithThis, boolean keepGoing) {
-		getPanelFrameData().setEvolvedImage(null);
+		getCurrentFrameData().setEvolvedImage(null);
 		stepping = stepping || keepGoing;
 		wizard.changed = false;
 		active = true; // actively searching
@@ -415,6 +417,9 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 * @param update true to update derivatives
 	 */
 	protected void stop(boolean now, boolean update) {
+		boolean b = Boolean.parseBoolean(wizard.startButton.getName());
+		TrackerPanel tp = frame.getTrackerPanelForID(panelID);
+		tp.setAutoRefresh(b);						
 		stepping = false; // don't keep stepping
 		active = !now && !paused;
 		paused = false;
@@ -444,12 +449,6 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		TrackerPanel trackerPanel = frame.getTrackerPanelForID(panelID);
 		trackerPanel.setSelectedTrack(track);
 		int n = trackerPanel.getFrameNumber();
-		Tracker.testVal = System.currentTimeMillis();
-		
-//		double millis = System.currentTimeMillis();
-//		double delta = millis - Tracker.testVal;
-//		Tracker.testVal = millis;
-//		System.out.println("pig frame "+n+" "+delta);
 		
 		FrameData frameData = getOrCreateFrameData(n);
 		KeyFrameData keyFrameData = frameData.getKeyFrameData();
@@ -721,7 +720,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 
 	private Interactive findInteractiveImp(DrawingPanel panel, int xpix, int ypix) {
 		isInteracting = false;
-		KeyFrameData keyFrameData = getPanelKeyFrameData();
+		KeyFrameData keyFrameData = getCurrentKeyFrameData();
 		if (keyFrameData == null || !wizard.isVisible() || getVideo() == null) {
 			return null;
 		}
@@ -797,7 +796,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	public TemplateMatcher getTemplateMatcher() {
 		if (panelID == null)
 			return null;
-		KeyFrameData keyFrameData = getPanelKeyFrameData();
+		KeyFrameData keyFrameData = getCurrentKeyFrameData();
 		if (keyFrameData == null)
 			return null;
 		if (keyFrameData.getTemplateMatcher() == null) {
@@ -830,7 +829,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		}
 
 		// save the search points in the current frame
-		getPanelFrameData().setSearchPoints(new TPoint[] { new TPoint(searchCenter), new TPoint(searchCorner) });
+		getCurrentFrameData().setSearchPoints(new TPoint[] { new TPoint(searchCenter), new TPoint(searchCorner) });
 		repaint();
 	}
 
@@ -1197,7 +1196,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 * @return a newly created template matcher, or null if no video image exists
 	 */
 	protected TemplateMatcher createTemplateMatcher() {
-		KeyFrameData keyFrameData = getPanelKeyFrameData();
+		KeyFrameData keyFrameData = getCurrentKeyFrameData();
 		if (getVideo() != null && keyFrameData != null) {
 			// create template image
 			RectangularShape mask = keyFrameData.getMask();
@@ -1217,14 +1216,13 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		return image;
 	}
 
-	// indexFrameData maps point index to frameData
 	/**
-	 * Get or create for the currently selected track a Map of an Integer to a Map
-	 * of Integer to FrameData, caching this in trackDataMap
+	 * For the currently selected track, get the map of its target index to a <map
+	 * of frame number to FrameData>.
 	 * 
-	 * @return map
+	 * @return the map
 	 */
-	protected Map<Integer, Map<Integer, FrameData>> getMapOfIndexToMapofIndexToFrameData() {
+	protected Map<Integer, Map<Integer, FrameData>> getMapOfIndexToMapofFrameNumberToFrameData() {
 		TTrack track = getTrack();
 		Map<Integer, Map<Integer, FrameData>> map = trackDataMap.get(track);
 		if (map == null) {
@@ -1233,49 +1231,48 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		return map;
 	}
 
-	// frameData maps frame number to individual FrameData objects
 
 	/**
-	 * Map the
+	 * For the currently selected track, get the map of frame number to FrameData for
+	 * a specified target index.
 	 * 
-	 * @param index
-	 * @return
+	 * @param index the target index
+	 * @return the map
 	 */
-	protected Map<Integer, FrameData> getIndexToFrameDataMap(int index) {
-		Map<Integer, FrameData> map = getMapOfIndexToMapofIndexToFrameData().get(index);
+	protected Map<Integer, FrameData> getFrameNumberToFrameDataMap(int index) {
+		Map<Integer, FrameData> map = getMapOfIndexToMapofFrameNumberToFrameData().get(index);
 		if (map == null) {
-			getMapOfIndexToMapofIndexToFrameData().put(index, map = new TreeMap<Integer, FrameData>());
+			getMapOfIndexToMapofFrameNumberToFrameData().put(index, map = new TreeMap<Integer, FrameData>());
 		}
 		return map;
 	}
 
 	/**
-	 * get the FrameData map for the current track, or track 0 if it is not
-	 * selected.
+	 * For the currently selected track, get the map of frame number to FrameData.
 	 * 
-	 * @return
+	 * @return the map
 	 */
-	protected Map<Integer, FrameData> getTrackTargetIndexToFrameDataMap() {
+	protected Map<Integer, FrameData> getFrameNumberToFrameDataMap() {
 		TTrack track = getTrack();
-		return getIndexToFrameDataMap(track == null ? 0 : track.getTargetIndex());
+		return getFrameNumberToFrameDataMap(track == null ? 0 : track.getTargetIndex());
 	}
 
 	/**
-	 * Get or create the FrameData object for the current trackerPanel frame.
+	 * Get or create the FrameData object for the current frame number.
 	 * 
 	 * @return FrameData object
 	 */
-	protected FrameData getPanelFrameData() {
+	protected FrameData getCurrentFrameData() {
 		return getOrCreateFrameData(frame.getTrackerPanelForID(panelID).getFrameNumber());
 	}
 
 	/**
-	 * Get or create KeyFrameData for the current tracker panel frame.
+	 * Get or create KeyFrameData for the current frame number.
 	 * 
 	 * @return
 	 */
-	protected KeyFrameData getPanelKeyFrameData() {
-		return getPanelFrameData().getKeyFrameData();
+	protected KeyFrameData getCurrentKeyFrameData() {
+		return getCurrentFrameData().getKeyFrameData();
 	}
 
 	/**
@@ -1318,7 +1315,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 * @return
 	 */
 	protected FrameData getOrCreateFrameData(int frameNumber) {
-		Map<Integer, FrameData> map = getTrackTargetIndexToFrameDataMap();
+		Map<Integer, FrameData> map = getFrameNumberToFrameDataMap();
 		FrameData frameData = map.get(frameNumber);
 		if (frameData == null) {
 			TTrack track = getTrack();
@@ -1332,7 +1329,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	protected void moveOriginToFirstKeyFrame() {
 		TrackerPanel trackerPanel = frame.getTrackerPanelForID(panelID);
 		// find first key frame
-		Map<Integer, FrameData> map = getTrackTargetIndexToFrameDataMap();
+		Map<Integer, FrameData> map = getFrameNumberToFrameDataMap();
 		int n = -1;
 		for (Integer key : map.keySet()) {
 			if (map.get(key).isKeyFrameData()) {
@@ -1359,7 +1356,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 
 	protected FrameData getOrCreatePreviousFrameData(int frameNumber) {
 		for (int i = frameNumber; --i >= 0;) {
-			FrameData frameData = getTrackTargetIndexToFrameDataMap().get(i);
+			FrameData frameData = getFrameNumberToFrameDataMap().get(i);
 			if (frameData != null)
 				return frameData;
 		}
@@ -1577,7 +1574,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 * @return the target
 	 */
 	protected TPoint getMatchTarget(TPoint center) {
-		double[] offset = getPanelFrameData().getTargetOffset();
+		double[] offset = getCurrentFrameData().getTargetOffset();
 		return new TPoint(center.x + offset[0], center.y + offset[1]);
 	}
 
@@ -1588,7 +1585,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 * @return the center
 	 */
 	protected TPoint getMatchCenter(TPoint target) {
-		double[] offset = getPanelFrameData().getTargetOffset();
+		double[] offset = getCurrentFrameData().getTargetOffset();
 		return new TPoint(target.x - offset[0], target.y - offset[1]);
 	}
 
@@ -1607,16 +1604,19 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 */
 	protected void reset() {
 		mark = null;
-		// clear all frames and identify the key frame
-		Map<Integer, FrameData> map = getTrackTargetIndexToFrameDataMap();
+		// clear all frames and identify the first key frame
+		Map<Integer, FrameData> map = getFrameNumberToFrameDataMap();
 		KeyFrameData keyFrameData = null;
 		for (Entry<Integer, FrameData> e : map.entrySet()) {
 			FrameData frameData = e.getValue();
 			frameData.clear();
-			if (keyFrameData == null && frameData.isKeyFrameData())
+			if (keyFrameData == null && frameData.isKeyFrameData()) {
 				keyFrameData = (KeyFrameData) frameData;
+			}
 		}
 		map.clear();
+		keyFrameMap.clear();
+		
 		// delete all steps unless always marked
 		TTrack track = getTrack();
 		boolean isAlwaysMarked = (track.steps.isAutofill() || track.ttype == TTrack.TYPE_COORDAXES);
@@ -1709,7 +1709,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 * @return a shape suitable for drawing
 	 */
 	protected RectangularShape getMatchShape(TPoint[] pts) {
-		RectangularShape mask = getPanelKeyFrameData().getMask();
+		RectangularShape mask = getCurrentKeyFrameData().getMask();
 		RectangularShape match = mask instanceof Ellipse2D?  
 				ellipseMatch:
 				rectangleMatch;
@@ -1822,7 +1822,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 
 	protected boolean isDrawingKeyFrameFor(TTrack track, int index) {
 		FrameData frameData;
-		return (getTrack() == track && wizard.isVisible() && (frameData = getPanelFrameData()).isKeyFrameData()
+		return (getTrack() == track && wizard.isVisible() && (frameData = getCurrentFrameData()).isKeyFrameData()
 				&& frameData.getIndex() == index);
 	}
 
@@ -1831,7 +1831,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 */
 	protected void clearSearchPointsDownstream() {
 		int n = trackerPanel().getFrameNumber();
-		for (Entry<Integer, FrameData> e : getTrackTargetIndexToFrameDataMap().entrySet()) {
+		for (Entry<Integer, FrameData> e : getFrameNumberToFrameDataMap().entrySet()) {
 			if (e.getKey() <= n)
 				continue;
 			FrameData frameData = e.getValue();
@@ -2005,7 +2005,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				maskCenter.y += dy;
 				maskCorner.x += dx;
 				maskCorner.y += dy;
-				KeyFrameData keyFrameData = getPanelKeyFrameData();
+				KeyFrameData keyFrameData = getCurrentKeyFrameData();
 				keyFrameData.getMaskPoints()[0].setLocation(maskCenter);
 				keyFrameData.getMaskPoints()[1].setLocation(maskCorner);
 				Target target = keyFrameData.getTarget();
@@ -2063,7 +2063,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				refreshSearchRect();
 				wizard.setChanged();
 			} else {
-				refreshKeyFrame(getPanelKeyFrameData(), true);
+				refreshKeyFrame(getCurrentKeyFrameData(), true);
 			}
 			clearSearchPointsDownstream();
 		}
@@ -2296,23 +2296,26 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		}
 
 		protected Map<Integer, FrameData> getMyFrameDataMap() {
-			return getIndexToFrameDataMap(index);
+			return getFrameNumberToFrameDataMap(index);
 		}
 
 		KeyFrameData getKeyFrameData() {
 			if (isKeyFrameData())
 				return (KeyFrameData) this;
-			Map<Integer, FrameData> map = getMyFrameDataMap();
-			for (int i = frameNum + 1; --i >= 0;) {
-				FrameData frameData = map.get(i);
-				if (frameData != null && frameData.isKeyFrameData())
-					return (KeyFrameData) frameData;
+			
+			// find the highest key frame number that is less than this frameNum
+			int n = -1;
+			for (Iterator<Integer> it = keyFrameMap.keySet().iterator(); it.hasNext(); ) {
+				int i = it.next();
+				if (i <= frameNum) {
+					n = i;
+				}
 			}
-			return null;
+			return n > -1? keyFrameMap.get(n): null;							
 		}
 
 		boolean hasKeyFrames() {
-			for (Entry<Integer, FrameData> e : getTrackTargetIndexToFrameDataMap().entrySet()) {
+			for (Entry<Integer, FrameData> e : getFrameNumberToFrameDataMap().entrySet()) {
 				if (e.getValue().isKeyFrameData())
 					return true;
 			}
@@ -2612,12 +2615,12 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				return;
 			maskCorner.x = maskCenter.x + width/2;
 			maskCorner.y = maskCenter.y + height/2;
-			KeyFrameData keyFrameData = getPanelKeyFrameData();
+			KeyFrameData keyFrameData = getCurrentKeyFrameData();
 			refreshKeyFrame(keyFrameData, false);
 		}
 		
 		protected void setShapeToEllipse(boolean ellipse) {
-			KeyFrameData keyFrameData = getPanelKeyFrameData();
+			KeyFrameData keyFrameData = getCurrentKeyFrameData();
 			if (keyFrameData == null) return;
 			RectangularShape s = keyFrameData.getMask();
 			keyFrameData.mask = ellipse?
@@ -2783,8 +2786,8 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			final ActionListener searchAction = (e) -> {
 				TrackerPanel tp = trackerPanel();
 				if (stepping) {
-					boolean b = Boolean.parseBoolean(startButton.getName());
-					tp.setAutoRefresh(b);
+//					boolean b = Boolean.parseBoolean(startButton.getName());
+//					tp.setAutoRefresh(b);
 					stop(false, false); // stop after the next search
 				} else {
 					startButton.setName(String.valueOf(tp.isAutoRefresh()));
@@ -3230,7 +3233,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 					if (track == null)
 						return;
 					track.setTargetIndex(item);
-					TPoint[] searchPts = getPanelFrameData().getSearchPoints(true);
+					TPoint[] searchPts = getCurrentFrameData().getSearchPoints(true);
 					if (searchPts != null)
 						setSearchPoints(searchPts[0], searchPts[1]);
 					refreshGUI();
@@ -3385,7 +3388,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 
 		protected void skipAction() {
 			// set decided flag
-			getPanelFrameData().decided = true;
+			getCurrentFrameData().decided = true;
 			// eliminate match icon?
 			// frame.setMatchIcon(null);
 			// step to the next frame if possible
@@ -3404,7 +3407,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		protected void deleteLaterAction() {
 			// clear later matches and steps
 			Integer n = trackerPanel().getFrameNumber();
-			Map<Integer, FrameData> map = getTrackTargetIndexToFrameDataMap();
+			Map<Integer, FrameData> map = getFrameNumberToFrameDataMap();
 			Iterator<Entry<Integer, FrameData>> iter = map.entrySet().iterator();
 			while (iter.hasNext()) {
 				Entry<Integer, FrameData> e = iter.next();
@@ -3424,12 +3427,13 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			refreshGUI();
 			AutoTracker.this.repaint();
 			track.invalidateData(track);
+			track.fireStepsChanged();
 		}
 
 		protected void deleteThisAction() {
 			// clear this match and step
 			int n = trackerPanel().getFrameNumber();
-			Map<Integer, FrameData> map = getTrackTargetIndexToFrameDataMap();
+			Map<Integer, FrameData> map = getFrameNumberToFrameDataMap();
 			FrameData frameData = map.get(n);
 			if (!frameData.isKeyFrameData()) {
 				map.remove(n);
@@ -3443,6 +3447,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			refreshGUI();
 			AutoTracker.this.repaint();
 			track.invalidateData(track);
+			track.fireStepsChanged();
 		}
 
 		protected void deleteButtonAction() {
@@ -3457,7 +3462,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			int stepCount = 0;
 			boolean hasLater = false;
 			if (isAlwaysMarked) {
-				Map<Integer, FrameData> map = getTrackTargetIndexToFrameDataMap();
+				Map<Integer, FrameData> map = getFrameNumberToFrameDataMap();
 				for (Entry<Integer, FrameData> e : map.entrySet()) {
 					FrameData frameData = e.getValue();
 					if (frameData.trackPoint == null)
@@ -3519,7 +3524,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		protected void keyFrameButtonAction() {
 			// find all key frames
 			ArrayList<Integer> keyFrames = new ArrayList<Integer>();
-			Map<Integer, FrameData> map = getTrackTargetIndexToFrameDataMap();
+			Map<Integer, FrameData> map = getFrameNumberToFrameDataMap();
 			for (Entry<Integer, FrameData> e : map.entrySet()) {
 				if (e.getValue().isKeyFrameData())
 					keyFrames.add(e.getKey());
@@ -3550,7 +3555,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		protected void deleteKeyFrameAction() {
 			int n = trackerPanel().getFrameNumber();
 			KeyFrameData keyFrameData = getOrCreateFrameData(n).getKeyFrameData();
-			Map<Integer, FrameData> map = getTrackTargetIndexToFrameDataMap();
+			Map<Integer, FrameData> map = getFrameNumberToFrameDataMap();
 			Integer nextKey = null; // later key frame, if any
 
 			// if this is first key frame, look for later one
@@ -3578,6 +3583,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 
 			// replace keyframe with non-key frame
 			map.put(n, new FrameData(keyFrameData));
+			keyFrameMap.remove(n);
 
 			// get earlier keyframe, if any
 			keyFrameData = getOrCreateFrameData(n).getKeyFrameData();
@@ -3730,7 +3736,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			searchThisButton.setToolTipText(back ? TrackerRes.getString("VideoPlayer.Back.Hint")
 					: TrackerRes.getString("AutoTracker.Wizard.Button.SearchThis.Tooltip")); //$NON-NLS-1$
 			searchNextButton.setText(TrackerRes.getString("AutoTracker.Wizard.Button.SearchNext")); //$NON-NLS-1$
-			searchNextButton.setEnabled(initialized && !running);
+//			searchNextButton.setEnabled(initialized && !running);
 			searchNextButton.setToolTipText(TrackerRes.getString("AutoTracker.Wizard.Button.SearchNext.Tooltip")); //$NON-NLS-1$
 
 			// set label sizes
@@ -3774,10 +3780,11 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			boolean stable = frameData.searched && !frameData.newTemplateExists();
 			boolean canSearchThis = !stable || code == 5 || (changed && code != 0)
 					|| (frameData == keyFrameData && frameData.getMarkedPoint() == null);
-			startButton.setEnabled(initialized);
+			boolean lastStep = n == trackerPanel().getPlayer().getVideoClip().getLastFrameNumber();
+			startButton.setEnabled(initialized && !lastStep);
 			searchThisButton.setName(initialized && notStepping && canSearchThis ? null : "back");
 			searchThisButton.setEnabled(trackerPanel().getStepNumber() > 0);
-			searchNextButton.setEnabled(initialized && canStep() && notStepping);
+			searchNextButton.setEnabled(initialized && canStep() && notStepping && !lastStep);
 
 			// refresh the ellipse/rect and size buttons and labels			
 			boolean isKeyFrame = isOnKeyFrame(n) || !initialized;
@@ -3813,7 +3820,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				boolean isAlwaysMarked = track.steps.isAutofill() || track.ttype == TTrack.TYPE_COORDAXES;
 				if (isAlwaysMarked) {
 					boolean hasFrameData = false;
-					Map<Integer, FrameData> map = getTrackTargetIndexToFrameDataMap();
+					Map<Integer, FrameData> map = getFrameNumberToFrameDataMap();
 					for (Integer i : map.keySet()) {
 						FrameData next = map.get(i);
 						if (next.trackPoint != null) {
@@ -4320,7 +4327,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			String tar = "_" + TrackerRes.getString("AutoTracker.Label.Target").toLowerCase(); //$NON-NLS-1$ //$NON-NLS-2$
 			buf.append(TrackerIO.getDelimiter() + "x" + tar + TrackerIO.getDelimiter() + "y" + tar); //$NON-NLS-1$ //$NON-NLS-2$
 			buf.append(XML.NEW_LINE);
-			Map<Integer, FrameData> frameData = getTrackTargetIndexToFrameDataMap();
+			Map<Integer, FrameData> frameData = getFrameNumberToFrameDataMap();
 			NumberFormat scoreFormat = NumberFormat.getInstance();
 			scoreFormat.setMaximumFractionDigits(1);
 			scoreFormat.setMinimumFractionDigits(1);
