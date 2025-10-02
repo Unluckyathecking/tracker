@@ -1109,6 +1109,15 @@ public class TrackerStarter {
 			javaCommand = XML.forwardSlash(javaHome) + "/bin/java"; //$NON-NLS-1$
 		}
 		cmd.add(javaCommand);
+		
+		boolean isOpenjdk = javaCommand.contains("OpenJDK");
+		File file = new File(trackerHome, "fontconfig.properties");
+		boolean hasLocalFontConfig = file.exists();
+		if (isOpenjdk && hasLocalFontConfig) {
+			String s = "-Dsun.awt.fontconfig=" + file.getPath();
+			cmd.add(s); //$NON-NLS-1$
+			logMessage("found fontconfig.properties at " + file.getPath()); //$NON-NLS-1$ 
+		}
 
 		if (memorySize > 0) {
 			cmd.add("-Xms32m"); //$NON-NLS-1$

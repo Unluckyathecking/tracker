@@ -468,6 +468,7 @@ public class Tracker {
 				new Locale("in"), // indonesian //$NON-NLS-1$
 				new Locale("it"), // Locale.ITALIAN,
 				new Locale("iw", "IL"), // hebrew //$NON-NLS-1$ //$NON-NLS-2$
+				new Locale("ja"), // japanese //$NON-NLS-1$
 				new Locale("ko"), // korean //$NON-NLS-1$
 				new Locale("lv"), // latvian //$NON-NLS-1$
 				new Locale("ms", "MY"), // malaysian //$NON-NLS-1$ //$NON-NLS-2$
@@ -2333,7 +2334,8 @@ public class Tracker {
 	 */
 	private static void start(String[] args) {
 		FontSizer.setLevel(preferredFontLevel + preferredFontLevelPlus);
-		Dataset.maxPointsMultiplier = 6; // increase max points in dataset
+		// be ready to handle videos and tracks of length 500,000 frames!
+		Dataset.maxPointsMultiplier = 32; // increase max points in dataset to 32x16x1024=524,288
 		// idea is Tracker.jar -headless -output "xxx.zip"
 		// to use Xuggle to create an image video set
 		Tracker tracker = new Tracker(args, true, true, null);
