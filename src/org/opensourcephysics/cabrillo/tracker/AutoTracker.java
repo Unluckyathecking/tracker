@@ -157,7 +157,6 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	private final static Footprint inactive_target_footprint = PointShapeFootprint.getFootprint("Footprint.Crosshair"); //$NON-NLS-1$
 	private final static Footprint corner_footprint = PointShapeFootprint.getFootprint("Footprint.SolidSquare"); //$NON-NLS-1$
 	private final static NumberFormat format = NumberFormat.getNumberInstance();
-	private final static double cornerFactor = 0.9;
 	private final static BasicStroke solidBold = new BasicStroke(2), solid = new BasicStroke();
 	private final static BasicStroke dotted = new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 8, DOTTED_LINE,
 			0), dashed = new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 8, DASHED_LINE, 0);
@@ -445,12 +444,12 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		TrackerPanel trackerPanel = frame.getTrackerPanelForID(panelID);
 		trackerPanel.setSelectedTrack(track);
 		int n = trackerPanel.getFrameNumber();
+		Tracker.testVal = System.currentTimeMillis();
 		
 //		double millis = System.currentTimeMillis();
 //		double delta = millis - Tracker.testVal;
 //		Tracker.testVal = millis;
 //		System.out.println("pig frame "+n+" "+delta);
-//		System.out.println();
 		
 		FrameData frameData = getOrCreateFrameData(n);
 		KeyFrameData keyFrameData = frameData.getKeyFrameData();
@@ -984,8 +983,8 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				Shape mask = keyFrameData.getMask();
 				if (mask instanceof RectangularShape) {
 					RectangularShape maskShape = (RectangularShape) mask;
-					maskCorner.x = maskCenter.x + maskShape.getWidth() / (2 * cornerFactor);
-					maskCorner.y = maskCenter.y + maskShape.getHeight() / (2 * cornerFactor);
+					maskCorner.x = maskCenter.x + maskShape.getWidth() / 2;
+					maskCorner.y = maskCenter.y + maskShape.getHeight() / 2;
 				}
 				searchCorner.x = searchRect2D.getMaxX();
 				searchCorner.y = searchRect2D.getMaxY();
@@ -1152,8 +1151,8 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			center.y += d*Math.cos(theta);
 		}
 		
-		TPoint corner = new TPoint(center.x + cornerFactor * (maskCorner.x - maskCenter.x),
-				center.y + cornerFactor * (maskCorner.y - maskCenter.y));
+		TPoint corner = new TPoint(center.x + (maskCorner.x - maskCenter.x),
+				center.y + (maskCorner.y - maskCenter.y));
 		frameData.setMatchPoints(new TPoint[] { center, corner, p });
 
 		// if good match found then build evolved template and return match target
@@ -1655,8 +1654,8 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				cos = 0.707;
 			}
 			double d = Math.max(minMaskRadius, maskCenter.distance(maskCorner));
-			double dx = d * cornerFactor * cos;
-			double dy = -d * cornerFactor * sin;
+			double dx = d * cos;
+			double dy = -d * sin;
 			if (Math.abs(dx) < 1) {
 				if (dx > 0)
 					dx = 1;
@@ -3043,7 +3042,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 					spinner.getComponent(j).addMouseListener(mouseOverListener);
 				JFormattedTextField tf = ((JSpinner.DefaultEditor) spinner.getEditor()).getTextField();
 				tf.addMouseListener(mouseOverListener);
-				tf.setEnabled(false);
+//				tf.setEnabled(false);
 				tf.setDisabledTextColor(Color.BLACK);
 			}
 			ChangeListener dimensionsListener = new ChangeListener() {
