@@ -15,8 +15,8 @@ workspace_trackerJS/launch4j:
 
 workspace_trackerJS/installbuilder:
 -- update docs/Tracker_README.txt
--- update version number in tracker_installer_6.xml
--- update prev_version list in tracker_installer_6.xml (2 places)
+-- update version number in tracker_installer_6.3.xml
+-- update prev_version list in tracker_installer_6.3.xml (2 places)
 -- update version number in tracker_upgrade_installer.xml
 -- build Windows and Linux installers & upgrade installers in workspace_trackerJS/installbuilder
 
@@ -44,13 +44,15 @@ workspace_trackerJS/installbuilder:
 -- zip the entire TrackerBuildXXX folder and send to Wolfgang via dropbox for building/notarizing
 -- use the tracker-X.X.X-osx-installer.dmg files returned by Wolfgang
 
-dreamweaver:
--- upload installers to installers folder on Davidson server
--- upload windows/osx/linux upgrade installers, tracker-x.x.x.jar and Tracker.exe to upgrade/ver6 folder 
--- upload tracker-X.X.X.jar to archives on Davidson server
+GitHub tracker-website/docs:
 -- update changeLog
+-- upload upgrade installers, tracker-x.x.x.jar and Tracker.exe to installers/upgrade
+-- upload tracker-X.X.X.jar to archives
+-- update tracker home page (index.html)
+
+FileZilla:
+-- upload full installers to installers folder on Davidson server
 -- upload text files for recording downloads and launches to Davidson server
--- update tracker home page (index.html) on GitHub
 -- update version number in counter.php on Davidson server
 
 desktop:
