@@ -1561,6 +1561,11 @@ public abstract class TTrack extends OSPRuntime.Supported implements Interactive
 		if (datasetManager == null) {
 			datasetManager = new DatasetManager(true);
 			datasetManager.setSorted(true);
+			boolean b = refreshDataLater;
+			refreshDataLater = false;
+			refreshData(datasetManager, panel);
+			refreshDataLater = b;
+			return datasetManager;
 		}
 		if (refreshDataLater || dataValid)
 			return datasetManager;
