@@ -2815,12 +2815,14 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 					trackerPanel().getPlayer().back();
 					return;
 				}
+				startButton.setName(String.valueOf(trackerPanel().isAutoRefresh()));
 				search(true, false); // search this frame and stop
 			});
 			searchThisButton.addKeyListener(kl);
 			startPanel.add(searchThisButton);
 			searchNextButton = new JButton();
 			searchNextButton.addActionListener((e) -> {
+				startButton.setName(String.valueOf(trackerPanel().isAutoRefresh()));
 				search(false, false); // search next frame and stop
 			});
 			searchNextButton.addKeyListener(kl);
