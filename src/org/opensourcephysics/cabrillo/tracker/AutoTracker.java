@@ -224,7 +224,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	private long currentms = 0;
   private Robot robot;
   private boolean odd = true;
-
+  private long msTimeDelay;
 
 	/*
 	 * trackDataMap maps tracks to indexFrameData which maps point index to
@@ -279,6 +279,11 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 					if (stepping) { // move to the next step
 						wizard.refreshInfo();
 						repaint();
+						if (track.ttype == TTrack.TYPE_POINTMASS
+								&& !wizard.fastCheckbox.isSelected()) {
+							PointMass pointMass = (PointMass) track;
+							pointMass.updateDerivatives(panel, panel.getFrameNumber());
+						}
 						panel.getPlayer().step();
 						return;
 					}
@@ -447,8 +452,18 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		if (track == null)
 			return false;
 		TrackerPanel trackerPanel = frame.getTrackerPanelForID(panelID);
+		
+		if (!wizard.fastCheckbox.isSelected()
+				&& trackerPanel.isAutoRefresh()) try {
+			Thread.sleep(msTimeDelay);
+		} catch (InterruptedException e) { 
+		}
 		trackerPanel.setSelectedTrack(track);
 		int n = trackerPanel.getFrameNumber();
+		// prepare to measure processing time
+		msTimeDelay = System.currentTimeMillis();
+		VideoPlayer player = trackerPanel.getPlayer();
+		double stepDuration = player.getMeanStepDuration() / player.getRate();
 		
 		FrameData frameData = getOrCreateFrameData(n);
 		KeyFrameData keyFrameData = frameData.getKeyFrameData();
@@ -463,16 +478,24 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				}
 				frameData.setAutoMarkPoint(p);
 				track.autoTrackerMarking = false;
+				// determine time delay for next frame
+				long processTime = System.currentTimeMillis() - msTimeDelay;
+				msTimeDelay = Math.max(0, (long)stepDuration - processTime - 10);
 				return true;
 			}
 			if (p == null) {
 				if (peakWidthAndHeight[1] < possibleMatch) {
 					frameData.setMatchIcon(null);
 				} else if (stopPolicy == STOP_NO_MATCH) {
+					// determine time delay for next frame
+					long processTime = System.currentTimeMillis() - msTimeDelay;
+					msTimeDelay = Math.max(0, (long)stepDuration - processTime - 10);
 					return true;
 				}
 			}
 		}
+		// set time delay to zero for next frame
+		msTimeDelay = 0;
 		return false;
 	}
 
@@ -2463,7 +2486,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		private JLabel pointLabel, trackLabel, stopLabel, templateShapeLabel;
 		protected Dimension textPaneSize;
 		private JRadioButton ellipseButton, rectButton;
-		private JCheckBox oneDCheckbox;
+		private JCheckBox oneDCheckbox, fastCheckbox;
 		private JRadioButton poorMatchButton, noMatchButton, neverStopButton;
 		private JRadioButton lookAheadButton, followButton, fixedButton;
 		private Object mouseOverObj;
@@ -2786,12 +2809,11 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			final ActionListener searchAction = (e) -> {
 				TrackerPanel tp = trackerPanel();
 				if (stepping) {
-//					boolean b = Boolean.parseBoolean(startButton.getName());
-//					tp.setAutoRefresh(b);
-					stop(false, false); // stop after the next search
+					stop(false, true); // stop after the next search and update data
 				} else {
 					startButton.setName(String.valueOf(tp.isAutoRefresh()));
-					tp.setAutoRefresh(false);
+					if (fastCheckbox.isSelected())
+						tp.setAutoRefresh(false);
 					search(true, true); // search this frame and keep stepping
 				}
 			};
@@ -3098,7 +3120,8 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			oneDCheckbox.addMouseListener(mouseOverListener);
 			oneDCheckbox.setOpaque(false);
 			oneDCheckbox.setSelected(lineSpread >= 0);
-			oneDCheckbox.setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 6));
+//			oneDCheckbox.setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 6));
+			oneDCheckbox.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 			oneDCheckbox.addActionListener((e) -> {
 				lineSpread = oneDCheckbox.isSelected() ? 0 : -1;
 				setChanged();
@@ -3108,11 +3131,28 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				}
 				TFrame.repaintT(trackerPanel);
 			});
+			fastCheckbox = new JCheckBox();
+			fastCheckbox.addMouseListener(mouseOverListener);
+			fastCheckbox.setOpaque(false);
+			fastCheckbox.setSelected(false);
+			fastCheckbox.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+			fastCheckbox.addActionListener((e) -> {
+				if (!active) return;
+				if (!fastCheckbox.isSelected()) {
+					boolean b = Boolean.parseBoolean(startButton.getName());
+					trackerPanel.setAutoRefresh(b);											
+				}
+				else {
+					startButton.setName(String.valueOf(trackerPanel.isAutoRefresh()));
+					trackerPanel.setAutoRefresh(false);
+				}
+			});
 			
 			lookAheadButton = new JRadioButton();
 			lookAheadButton.addMouseListener(mouseOverListener);
 			lookAheadButton.setOpaque(false);
 			lookAheadButton.setSelected(true);
+//			lookAheadButton.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 			lookAheadButton.addActionListener((e) -> {
 				searchAreaPolicy = LOOK_AHEAD;
 				setChanged();
@@ -3121,6 +3161,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			followButton.addMouseListener(mouseOverListener);
 			followButton.setOpaque(false);
 			followButton.setSelected(true);
+//			followButton.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 			followButton.addActionListener((e) -> {
 				searchAreaPolicy = FOLLOW;
 				setChanged();
@@ -3133,7 +3174,8 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				searchAreaPolicy = FIXED;
 				setChanged();
 			});
-			fixedButton.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 12));
+//			fixedButton.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 12));
+			fixedButton.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 			group = new ButtonGroup();
 			group.add(lookAheadButton);
 			group.add(followButton);
@@ -3142,6 +3184,10 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			flowpanel = new JPanel();
 			flowpanel.setBorder(BorderFactory.createEmptyBorder(1, 0, 0, 0));
 			flowpanel.setOpaque(false);
+			flowpanel.add(fastCheckbox);
+			separator = TToolBar.getSeparator();
+			separator.addMouseListener(mouseOverListener);			
+			flowpanel.add(separator);
 			flowpanel.add(lookAheadButton);
 			flowpanel.add(followButton);
 			flowpanel.add(fixedButton);
@@ -3705,6 +3751,8 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			deleteButton.setText(TrackerRes.getString("AutoTracker.Wizard.Button.Delete")); //$NON-NLS-1$
 			oneDCheckbox.setText(TrackerRes.getString("AutoTracker.Wizard.Checkbox.XAxis")); //$NON-NLS-1$
 			oneDCheckbox.setToolTipText(TrackerRes.getString("AutoTracker.Wizard.Checkbox.XAxis.Tooltip")); //$NON-NLS-1$
+			fastCheckbox.setText(TrackerRes.getString("AutoTracker.Wizard.Checkbox.Fast")); //$NON-NLS-1$
+			fastCheckbox.setToolTipText(TrackerRes.getString("AutoTracker.Wizard.Checkbox.Fast.Tooltip")); //$NON-NLS-1$
 			lookAheadButton.setText(TrackerRes.getString("AutoTracker.RadioButton.LookAhead")); //$NON-NLS-1$
 			lookAheadButton.setToolTipText(TrackerRes.getString("AutoTracker.Wizard.Checkbox.LookAhead.Tooltip")); //$NON-NLS-1$
 			followButton.setText(TrackerRes.getString("AutoTracker.RadioButton.Follow")); //$NON-NLS-1$
@@ -4126,6 +4174,10 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				buf.append(TrackerRes.getString("AutoTracker.Info.SearchOnAxis")); //$NON-NLS-1$
 			else
 				buf.append(TrackerRes.getString("AutoTracker.Info.Search")); //$NON-NLS-1$
+			buf.append("\n\n"); //$NON-NLS-1$
+			buf.append(TrackerRes.getString("AutoTracker.Info.Title.Speed")); //$NON-NLS-1$
+			buf.append(": "); //$NON-NLS-1$
+			buf.append(TrackerRes.getString("AutoTracker.Info.Search.Speed")); //$NON-NLS-1$
 			buf.append("\n\n"); //$NON-NLS-1$
 			buf.append(TrackerRes.getString("AutoTracker.Info.Title.Settings")); //$NON-NLS-1$
 			buf.append(": "); //$NON-NLS-1$
