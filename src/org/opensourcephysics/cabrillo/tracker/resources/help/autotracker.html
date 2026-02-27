@@ -34,8 +34,7 @@
                    
 		<h3><a name="auto2" id="auto2"></a>2. Preparing to use autotracker</h3>
 		<p>Before using autotracker, scan through the video and verify that the feature of interest is visible and reasonably consistent (shape, size, color and orientation) in all frames. If not, adjust the <a href="videos.html#videoclip">video clip</a> start frame, end frame and/or step size until this condition is met. Then reset the video to the start frame.</p>
-		<p>If planning to autotrack a very long video, it is useful to turn off auto-refresh in order to speed up the marking process. To turn off auto-refresh, click the Refresh button on the toolbar and uncheck the <strong>Auto-refresh</strong> item in the popup menu. When done marking, turn auto-refresh back on or refresh the data manually by choosing the <strong>Refresh</strong> item in the popup menu.</p>
-	<p align="center"><img src="../help_images/refresh_menu.gif" alt="Refresh menu"></p>
+		<p>By default,  autotracker searches for and marks points at  <strong>video playback speed</strong> with <strong>live plots and tables</strong>. This is useful when you want to watch the data unfold.   You can adjust the video playback speed with the rate spinner on the video player. If you don't need live data, choose <strong>Fast</strong> mode to search at maximum speed without refreshing plots and tables.</p>
 <h3><a name="auto3" id="auto3"></a>3. Using autotracker</h3>
 		<ol>
             <li>Select the target track.</li>
@@ -64,7 +63,7 @@
 		<p><strong>Search:</strong> The search area defines the region that is searched for the best match.</p>
         <ol>
             <li> Move or resize the search area by dragging its center or handle (small solid square), respectively. <strong>Tip:</strong> The search area need not be large. For many motions the look-ahead feature does a good job of predicting match positions and searching in the right place.</li>
-            <li>Check the <strong>Fast</strong> checkbox to search at maximum speed without refreshing plots and tables. Uncheck it to search at video playback speed with live plots and tables. Adjust video playback speed with the rate spinner <img src="../help_images/play_rate_spinner.gif" alt="play rate spinner" align="absmiddle">on the video player.</li>
+            <li>Speed: check <strong>Fast</strong> to search at maximum speed without refreshing plots and tables. Leave unchecked to search at video playback speed with live plots and tables. Adjust video playback speed with the rate spinner on the video player.</li>
             <li>Set the search positioning action to <strong>Look-Ahead</strong>, <strong>Follow-Along</strong> or <strong>Fixed</strong>. Look-Ahead will automatically move the search area to predicted match positions using a look-ahead algorithm that assumes constant acceleration. Follow-Along will move the search area to the previous match position. Fixed keeps the search area fixed in it's current position.</li>
             <li>Check the <strong>X-axis</strong> checkbox to limit the search to the x-axis only.  The coordinate system origin will automatically be set to the center of the template. Tilt the axes to search in the desired direction. <strong>Note:</strong> if the x-axis does not pass through or near the center of the search area, no matches will be found.</li>
         </ol>
