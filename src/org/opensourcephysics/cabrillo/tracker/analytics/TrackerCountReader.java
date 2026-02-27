@@ -48,6 +48,7 @@ public class TrackerCountReader extends JFrame {
 	private String[] actions = {"read launch counts", "read downloads", "version", "list launch log failures", "list download failures",  //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$
 			"clear launch log failures", "clear download failures", "test launch log", "test downloads"}; //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
 	private String[] versions = {"all", "6.", "5.", "4.",  //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+			"6.3", "6.2", "6.1", "6.0",   //$NON-NLS-1$//$NON-NLS-2$
 			"6.3.3", "6.3.2", "6.3.1",    //$NON-NLS-1$//$NON-NLS-2$
 			"6.3.0", "6.2.0", "6.1.7",    //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$
 			"6.1.6", "6.1.5", "6.1.4",    //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ 
@@ -204,6 +205,19 @@ public class TrackerCountReader extends JFrame {
 				else if (versionDropdown.getSelectedItem().equals("4.") //$NON-NLS-1$
 						|| versionDropdown.getSelectedItem().equals("5.")
 						|| versionDropdown.getSelectedItem().equals("6.")) { //$NON-NLS-1$
+					ArrayList<String> vers = new ArrayList<String>();
+					String s = versionDropdown.getSelectedItem().toString();
+					for (int i=0; i<versions.length; i++) {
+						if (versions[i].startsWith(s) && !versions[i].equals(s)) {
+							vers.add(versions[i]);
+						}
+					}
+					ver = vers.toArray(new String[vers.size()]);
+				}
+				else if (versionDropdown.getSelectedItem().equals("6.0") //$NON-NLS-1$
+						|| versionDropdown.getSelectedItem().equals("6.1")
+						|| versionDropdown.getSelectedItem().equals("6.2")
+						|| versionDropdown.getSelectedItem().equals("6.3")) { //$NON-NLS-1$
 					ArrayList<String> vers = new ArrayList<String>();
 					String s = versionDropdown.getSelectedItem().toString();
 					for (int i=0; i<versions.length; i++) {
@@ -406,6 +420,6 @@ public class TrackerCountReader extends JFrame {
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston MA 02111-1307 USA
  * or view the license online at http://www.gnu.org/copyleft/gpl.html
  *
- * Copyright (c) 2025  The Open Source Physics project
+ * Copyright (c) 2026  The Open Source Physics project
  *                     https://www.compadre.org/osp
  */
