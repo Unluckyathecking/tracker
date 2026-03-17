@@ -229,7 +229,7 @@ public class TrackerPanel extends VideoPanel implements Scrollable {
 	protected boolean isShiftKeyDown, isControlKeyDown, isEnterKeyDown;
 	protected boolean isAutoPaste;
 	
-	private int cursorType;
+	protected int cursorType;
 	private boolean showTrackControlDelayed;
 
 	/**
@@ -1420,18 +1420,6 @@ public class TrackerPanel extends VideoPanel implements Scrollable {
 		return snapPoint;
 	}
 
-	@Override
-	public void setCursor(Cursor c) {
-		if (c == TMouseHandler.autoTrackCursor)
-			cursorType = TMouseHandler.STATE_AUTO;
-		else if (c == TMouseHandler.autoTrackMarkCursor)
-			cursorType = TMouseHandler.STATE_AUTOMARK;
-		else if (c == TMouseHandler.markPointCursor)
-			cursorType = TMouseHandler.STATE_MARK;
-		else 
-			cursorType = 0;
-		super.setCursor(c);
-	}
 	/**
 	 * Sets the selected track.
 	 *
@@ -2397,6 +2385,7 @@ public class TrackerPanel extends VideoPanel implements Scrollable {
 	protected boolean setCursorForMarking(boolean invert, InputEvent e) {
 		if (isClipAdjusting() || Tracker.isZoomInCursor(getCursor()) || Tracker.isZoomOutCursor(getCursor()))
 			return false;
+		cursorType = 0; // default, may be changed below if marking
 		boolean markable = false;
 		boolean marking = false;
 		selectedTrack = getSelectedTrack();
@@ -2415,7 +2404,14 @@ public class TrackerPanel extends VideoPanel implements Scrollable {
 		Interactive iad = getTracksTemp().isEmpty() || mouseEvent == null ? null : getInteractive();
 		clearTemp();
 		if (marking) {
-			setMouseCursor(selectedTrack.getMarkingCursor(e));
+			Cursor c = selectedTrack.getMarkingCursor(e);
+			if (c == TMouseHandler.autoTrackCursor)
+				cursorType = TMouseHandler.STATE_AUTO;
+			else if (c == TMouseHandler.autoTrackMarkCursor)
+				cursorType = TMouseHandler.STATE_AUTOMARK;
+			else if (c == TMouseHandler.markPointCursor)
+				cursorType = TMouseHandler.STATE_MARK;
+			setMouseCursor(c);
 			if (Tracker.showHints) {
 				String msg = null;
 				switch (selectedTrack.ttype) {
@@ -3084,7 +3080,11 @@ public class TrackerPanel extends VideoPanel implements Scrollable {
 		}
 		if (cursor != Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR) && !Tracker.isZoomInCursor(cursor)
 				&& !Tracker.isZoomOutCursor(cursor)) {
-			super.setMouseCursor(cursor);
+			boolean useCrosshair = OSPRuntime.isJS;
+			Cursor c = useCrosshair && cursorType > 0? 
+					Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR): 
+					cursor;
+			super.setMouseCursor(c);
 		}
 	}
 
