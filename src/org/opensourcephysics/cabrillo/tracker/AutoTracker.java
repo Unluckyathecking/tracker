@@ -231,7 +231,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 * frameData which maps frame number to individual FrameData objects
 	 */
 	private Map<TTrack, Map<Integer, Map<Integer, FrameData>>> trackDataMap = new HashMap<TTrack, Map<Integer, Map<Integer, FrameData>>>();
-	private Map<Integer, KeyFrameData> keyFrameMap = new TreeMap<Integer, KeyFrameData>();
+	private Map<Integer, FrameData> dummyDataMap = new TreeMap<Integer, FrameData>();
 	private int lineSpread = -1; // positive for 1D, negative for 2D tracking
 	private boolean isInteracting;
 	private double[][] derivatives1 = new double[predictionLookback - 1][];
@@ -365,7 +365,6 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		searchCorner.setLocation(x + defaultSearchSize[0], y + defaultSearchSize[1]);
 		KeyFrameData keyFrameData = new KeyFrameData(p, mask, target);
 		getFrameNumberToFrameDataMap().put(n, keyFrameData);
-		keyFrameMap.put(n, keyFrameData);
 		clearSearchPointsDownstream();
 		refreshSearchRect();
 		refreshKeyFrame(keyFrameData, true);
@@ -742,6 +741,8 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	int test = 0;
 
 	private Interactive findInteractiveImp(DrawingPanel panel, int xpix, int ypix) {
+		if (getTrack() == null)
+			return null;
 		isInteracting = false;
 		KeyFrameData keyFrameData = getCurrentKeyFrameData();
 		if (keyFrameData == null || !wizard.isVisible() || getVideo() == null) {
@@ -1271,13 +1272,19 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	}
 
 	/**
-	 * For the currently selected track, get the map of frame number to FrameData.
+	 * For the currently selected track and target index, get the map 
+	 * of frame number to FrameData.
+	 * If no track is selected, an empty dummy map is returned
 	 * 
 	 * @return the map
 	 */
 	protected Map<Integer, FrameData> getFrameNumberToFrameDataMap() {
 		TTrack track = getTrack();
-		return getFrameNumberToFrameDataMap(track == null ? 0 : track.getTargetIndex());
+		if (track == null) {
+			dummyDataMap.clear();
+			return dummyDataMap;
+		}
+		return getFrameNumberToFrameDataMap(track.getTargetIndex());
 	}
 
 	/**
@@ -1338,7 +1345,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 * @return
 	 */
 	protected FrameData getOrCreateFrameData(int frameNumber) {
-		Map<Integer, FrameData> map = getFrameNumberToFrameDataMap();
+		Map<Integer, FrameData> map = getFrameNumberToFrameDataMap(); // never null			
 		FrameData frameData = map.get(frameNumber);
 		if (frameData == null) {
 			TTrack track = getTrack();
@@ -1638,7 +1645,6 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 			}
 		}
 		map.clear();
-		keyFrameMap.clear();
 		
 		// delete all steps unless always marked
 		TTrack track = getTrack();
@@ -2325,20 +2331,26 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		KeyFrameData getKeyFrameData() {
 			if (isKeyFrameData())
 				return (KeyFrameData) this;
+
 			
-			// find the highest key frame number that is less than this frameNum
-			int n = -1;
-			for (Iterator<Integer> it = keyFrameMap.keySet().iterator(); it.hasNext(); ) {
-				int i = it.next();
-				if (i <= frameNum) {
-					n = i;
+			// find latest key frame data that is <= frameNum
+			Map<Integer, FrameData> frameDataMap = getFrameNumberToFrameDataMap();
+			KeyFrameData keyData = null;
+			for (int i: frameDataMap.keySet()) {
+				FrameData frameData = frameDataMap.get(i);
+				if (frameData != null && frameData.isKeyFrameData()) {
+					if (i <= frameNum) {
+						keyData = (KeyFrameData)frameData;
+					}
+					else break;
 				}
 			}
-			return n > -1? keyFrameMap.get(n): null;							
+			return keyData; 
 		}
 
 		boolean hasKeyFrames() {
-			for (Entry<Integer, FrameData> e : getFrameNumberToFrameDataMap().entrySet()) {
+			Map<Integer, FrameData> frameDataMap = getFrameNumberToFrameDataMap();
+			for (Entry<Integer, FrameData> e : frameDataMap.entrySet()) {
 				if (e.getValue().isKeyFrameData())
 					return true;
 			}
@@ -3631,7 +3643,6 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 
 			// replace keyframe with non-key frame
 			map.put(n, new FrameData(keyFrameData));
-			keyFrameMap.remove(n);
 
 			// get earlier keyframe, if any
 			keyFrameData = getOrCreateFrameData(n).getKeyFrameData();
