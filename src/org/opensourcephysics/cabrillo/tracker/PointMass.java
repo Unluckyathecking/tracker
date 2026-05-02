@@ -386,6 +386,8 @@ public class PointMass extends TTrack {
 	protected int aDerivSpill = 2;
 	protected int bounceDerivsSpill = 3;
 	protected int[] params = new int[4];
+	// pre-derivative position filter; null disables filtering
+	protected MotionFilter motionFilter = null;
 	protected double[] xData = new double[5];
 	protected double[] yData = new double[5];
 	protected boolean[] validData = new boolean[5];
@@ -1031,6 +1033,26 @@ public class PointMass extends TTrack {
 			updateDerivatives();
 			fireStepsChanged();
 		}
+	}
+
+	/**
+	 * Sets the pre-derivative position filter applied before velocity and acceleration
+	 * are computed. A null filter disables filtering and restores raw-position behavior.
+	 *
+	 * @param newFilter the filter, or null
+	 */
+	public void setMotionFilter(MotionFilter newFilter) {
+		this.motionFilter = newFilter;
+		refreshDataLater = false;
+		updateDerivatives();
+		fireStepsChanged();
+	}
+
+	/**
+	 * @return the active motion filter, or null if filtering is disabled
+	 */
+	public MotionFilter getMotionFilter() {
+		return motionFilter;
 	}
 
 	/**
@@ -2188,6 +2210,16 @@ public class PointMass extends TTrack {
 		locked = false;
 		boolean labelsVisible = isLabelsVisible(panel);
 
+		// optionally smooth positions before differentiation
+		double[] xDataForDeriv = xData;
+		double[] yDataForDeriv = yData;
+		if (motionFilter != null) {
+			xDataForDeriv = motionFilter.apply(xData, validData);
+			yDataForDeriv = motionFilter.apply(yData, validData);
+			derivData[1] = xDataForDeriv;
+			derivData[2] = yDataForDeriv;
+		}
+
 		// evaluate derivatives in worldspace coordinates
 		double[] xDeriv1; // first deriv
 		double[] yDeriv1; // first deriv
@@ -2212,6 +2244,11 @@ public class PointMass extends TTrack {
 			result = aDeriv.evaluate(derivData);
 			xDeriv2 = (double[]) result[2];
 			yDeriv2 = (double[]) result[3];
+		}
+		// restore raw position references after derivative evaluation
+		if (motionFilter != null) {
+			derivData[1] = xData;
+			derivData[2] = yData;
 		}
 
 		// create, delete and/or set components of velocity vectors
@@ -2338,6 +2375,11 @@ public class PointMass extends TTrack {
 		boolean isLocked = locked; // save for later restoration
 		locked = false;
 
+		// optionally smooth angular position before differentiation
+		if (motionFilter != null) {
+			derivData[1] = motionFilter.apply(xData, validData);
+		}
+
 		// evaluate first derivative
 		params[0] = vDerivSpill; // spill
 		Object[] result = vDeriv.evaluate(derivData);
@@ -2347,6 +2389,11 @@ public class PointMass extends TTrack {
 		params[0] = aDerivSpill; // spill
 		result = aDeriv.evaluate(derivData);
 		double[] alpha = (double[]) result[2];
+
+		// restore raw reference for downstream callers
+		if (motionFilter != null) {
+			derivData[1] = xData;
+		}
 
 		// restore locked state
 		locked = isLocked;
@@ -2864,6 +2911,10 @@ public class PointMass extends TTrack {
 				i++;
 			}
 			control.setValue("keyFrames", keys); //$NON-NLS-1$
+			// save filter if non-null
+			if (p.motionFilter != null) {
+				control.setValue("motion_filter", p.motionFilter); //$NON-NLS-1$
+			}
 		}
 
 		@Override
@@ -2950,10 +3001,16 @@ public class PointMass extends TTrack {
 				Step[] steps = p.getSteps();
 				for (int i = 0; i < steps.length; i++) {
 					if (steps[i] != null)
-						p.keyFrames.add(i);						
+						p.keyFrames.add(i);
 				}
 			}
-			
+
+			// load filter if present (older files have no filter; default null)
+			Object loadedFilter = control.getObject("motion_filter"); //$NON-NLS-1$
+			if (loadedFilter instanceof MotionFilter) {
+				p.motionFilter = (MotionFilter) loadedFilter;
+			}
+
 			p.setLocked(locked);
 			return obj;
 		}

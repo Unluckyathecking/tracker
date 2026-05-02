@@ -242,6 +242,7 @@ public class TrackerPanel extends VideoPanel implements Scrollable {
 	protected String author, contact;
 	protected AutoTracker autoTracker;
 	protected DerivativeAlgorithmDialog algorithmDialog;
+	protected MotionFilterDialog filterDialog;
 	protected AttachmentDialog attachmentDialog;
 	protected PlotGuestDialog guestsDialog;
 	protected UnitsDialog unitsDialog;
@@ -2320,6 +2321,20 @@ public class TrackerPanel extends VideoPanel implements Scrollable {
 			algorithmDialog.setFontLevel(FontSizer.getLevel());
 		}
 		return algorithmDialog;
+	}
+
+	/**
+	 * Gets the motion filter dialog used to configure smoothing applied before
+	 * velocity and acceleration are computed.
+	 *
+	 * @return the filter dialog
+	 */
+	protected MotionFilterDialog getFilterDialog() {
+		if (filterDialog == null) {
+			filterDialog = new MotionFilterDialog(this);
+			filterDialog.setFontLevel(FontSizer.getLevel());
+		}
+		return filterDialog;
 	}
 
 	/**
