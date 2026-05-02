@@ -91,6 +91,7 @@ import javax.swing.JFormattedTextField;
 import javax.swing.JFormattedTextField.AbstractFormatterFactory;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JRadioButton;
@@ -127,6 +128,8 @@ import org.opensourcephysics.media.core.VideoClip;
 import org.opensourcephysics.media.core.VideoPanel;
 import org.opensourcephysics.media.core.VideoPlayer;
 import org.opensourcephysics.tools.FontSizer;
+
+import javajs.async.AsyncDialog;
 
 /**
  * A class to automatically track a feature of interest in a video. This uses a
@@ -353,7 +356,7 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 	 * @param x the mask center x
 	 * @param y the mask center y
 	 */
-	protected void addKeyFrame(TPoint p, double x, double y) {
+	protected boolean addKeyFrame(TPoint p, double x, double y) {
 		TrackerPanel trackerPanel = trackerPanel();
 		int n = trackerPanel.getFrameNumber();
 		Target target = new Target();
@@ -364,6 +367,18 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		
 		maskCenter.setLocation(x, y);
 		maskCorner.setLocation(x + defaultMaskSize[0], y + defaultMaskSize[1]);
+		
+		// check that mask is entirely within video image
+		if (!isMaskInVideo()) {
+			new AsyncDialog().showMessageDialog(null, 
+					TrackerRes.getString("AutoTracker.Dialog.OutOfBounds.Message"), //$NON-NLS-1$ //$NON-NLS-2$
+					TrackerRes.getString("AutoTracker.Dialog.OutOfBounds.Title"), //$NON-NLS-1$
+					JOptionPane.WARNING_MESSAGE, (ev) -> {
+					});
+
+			return false;
+		}
+
 		searchCenter.setLocation(x, y);
 		searchCorner.setLocation(x + defaultSearchSize[0], y + defaultSearchSize[1]);
 		KeyFrameData keyFrameData = new KeyFrameData(p, mask, target);
@@ -379,10 +394,25 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		}
 		refreshKeyFrames();
 		TFrame.repaintT(trackerPanel);
+		return true;
 	}
 
 	private TrackerPanel trackerPanel() {
 		return frame.getTrackerPanelForID(panelID);
+	}
+	
+	private boolean isMaskInVideo() {		
+		// check that mask is entirely within video image
+		Dimension d = getVideo().getImageSize(true);
+		int w = d.width;
+		int h = d.height;
+		double dx = Math.abs(maskCorner.x - maskCenter.x);
+		double dy = Math.abs(maskCorner.y - maskCenter.y);
+		if (maskCenter.x + dx > w || maskCenter.x - dx < 0
+				|| maskCenter.y + dy > h || maskCenter.y - dy < 0) {
+			return false;
+		}
+		return true;
 	}
 
 	/**
@@ -2037,6 +2067,8 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		public void setXY(double x, double y) {
 			double dx = x - getX();
 			double dy = y - getY();
+			prevX = getX();
+			prevY = getY();
 			super.setXY(x, y);
 			if (this == searchHandle) {
 				searchCenter.x += dx;
@@ -2050,6 +2082,15 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 				maskCenter.y += dy;
 				maskCorner.x += dx;
 				maskCorner.y += dy;
+				// revert if mask is not in video
+				if (!isMaskInVideo()) {
+					super.setXY(prevX, prevY);
+					maskCenter.x -= dx;
+					maskCenter.y -= dy;
+					maskCorner.x -= dx;
+					maskCorner.y -= dy;
+					return;
+				}
 				KeyFrameData keyFrameData = getCurrentKeyFrameData();
 				keyFrameData.getMaskPoints()[0].setLocation(maskCenter);
 				keyFrameData.getMaskPoints()[1].setLocation(maskCorner);
@@ -2103,11 +2144,18 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		 */
 		@Override
 		public void setXY(double x, double y) {
+			prevX = this.x;
+			prevY = this.y;
 			super.setXY(x, y);
 			if (this == searchCorner) {
 				refreshSearchRect();
 				wizard.setChanged();
 			} else {
+				// revert if mask is not in video
+				if (!isMaskInVideo()) {
+					super.setXY(prevX, prevY);
+					return;
+				}
 				refreshKeyFrame(getCurrentKeyFrameData(), true);
 			}
 			clearSearchPointsDownstream();
@@ -2649,11 +2697,17 @@ public class AutoTracker implements Interactive, Trackable, PropertyChangeListen
 		// _____________________________ protected methods ____________________________
 
 		protected void setMaskDimensions(double width, double height) {
-			if (maskCorner.x - maskCenter.x == width/2
-					&& maskCorner.y - maskCenter.y == height/2)
+			double prevW = maskCorner.x - maskCenter.x;
+			double prevH = maskCorner.y - maskCenter.y;
+			if (prevW == width/2 && prevH == height/2)
 				return;
 			maskCorner.x = maskCenter.x + width/2;
 			maskCorner.y = maskCenter.y + height/2;
+			// revert if mask is not in video
+			if (!isMaskInVideo()) {
+				maskCorner.x = maskCenter.x + prevW;
+				maskCorner.y = maskCenter.y + prevH;
+			}
 			KeyFrameData keyFrameData = getCurrentKeyFrameData();
 			refreshKeyFrame(keyFrameData, false);
 		}

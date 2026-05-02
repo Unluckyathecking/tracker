@@ -369,12 +369,12 @@ public class TMouseHandler implements InteractiveMouseHandler {
 														// calibration pts
 		int index = selectedTrack.getTargetIndex();
 		int nextIndex = index;
+		boolean newStep = (step == null);
 		if (step == null || !autotrackTrigger) {
 			if (autotrackTrigger) {
 				selectedTrack.autoMarkAt(frameNumber, trackerPanel.getMouseX(), trackerPanel.getMouseY());
 				step = selectedTrack.getStep(frameNumber);
 			} else {
-				boolean newStep = (step == null);
 				if (selectedTrack.ttype == TTrack.TYPE_POINTMASS) {
 					selectedTrack.keyFrames.add(frameNumber);
 				}
@@ -424,8 +424,16 @@ public class TMouseHandler implements InteractiveMouseHandler {
 					break;
 				}
 			}
-			autoTracker.addKeyFrame(target, trackerPanel.getMouseX(), trackerPanel.getMouseY());
-			trackerPanel.refreshTrackBar();
+			if (autoTracker.addKeyFrame(target, trackerPanel.getMouseX(), trackerPanel.getMouseY())) {
+				trackerPanel.refreshTrackBar();
+			}
+			else {
+				if (newStep) {
+					selectedTrack.steps.setStep(frameNumber, null);
+					selectedTrack.fireStepsChanged();
+				}
+				return;
+			}
 		}
 
 		if (step != null && !autotrackTrigger) {
