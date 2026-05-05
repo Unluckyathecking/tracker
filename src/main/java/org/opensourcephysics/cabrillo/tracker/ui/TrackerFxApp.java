@@ -25,6 +25,8 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.converter.DoubleStringConverter;
 
+import org.opensourcephysics.cabrillo.tracker.analysis.AnalysisVariable;
+import org.opensourcephysics.cabrillo.tracker.analysis.TrackAnalyzer;
 import org.opensourcephysics.cabrillo.tracker.calibration.Calibration;
 import org.opensourcephysics.cabrillo.tracker.data.model.Point;
 import org.opensourcephysics.cabrillo.tracker.data.model.Track;
@@ -43,11 +45,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Full JavaFX UI for Tracker video analysis.
- * Supports video loading, frame scrubbing, click-to-mark tracking,
- * and real-time trajectory plotting.
- */
+/** Full JavaFX UI for Tracker video analysis. */
 public class TrackerFxApp extends Application {
 
     // Video
@@ -83,8 +81,15 @@ public class TrackerFxApp extends Application {
     private TableView<Point> pointTable;
     private ToggleButton markButton;
     private ToggleButton stickButton;
+    private ToggleButton vectorsButton;
     private ListView<Track> trackListView;
     private ObservableList<Track> trackList;
+
+    // Analysis / plot controls
+    private ChoiceBox<AnalysisVariable> xAxisChoice;
+    private ChoiceBox<AnalysisVariable> yAxisChoice;
+    private LineChart<Number, Number> plot;
+    private Label kinematicsLabel;
 
     // Calibration stick state
     private final List<double[]> stickPoints = new ArrayList<>();
@@ -100,8 +105,8 @@ public class TrackerFxApp extends Application {
         project.addTrack(currentTrack);
 
         controller = project.getTrackingController();
-        controller.setActiveTrack(currentTrack);  // (1) wire controller
-        controller.addListener(this::onTrackChanged);  // (1) register listener
+        controller.setActiveTrack(currentTrack);
+        controller.addListener(this::onTrackChanged);
 
         pointList = FXCollections.observableArrayList();
         trackList = FXCollections.observableArrayList(project.getTracks());
@@ -143,7 +148,6 @@ public class TrackerFxApp extends Application {
                 }
                 default -> {}
             }
-            // (8) Undo / Redo keybindings
             if (e.isControlDown() && e.getCode() == KeyCode.Z) controller.undo();
             if (e.isControlDown() && e.getCode() == KeyCode.Y) controller.redo();
         });
@@ -169,7 +173,6 @@ public class TrackerFxApp extends Application {
     private MenuBar buildMenuBar(Stage stage) {
         MenuBar bar = new MenuBar();
 
-        // (10) File menu with Save/Open Project
         Menu fileMenu = new Menu("File");
         MenuItem openVideo = new MenuItem("Open Video...");
         openVideo.setOnAction(e -> openVideoDialog(stage));
@@ -193,7 +196,6 @@ public class TrackerFxApp extends Application {
         newTrack.setOnAction(e -> createNewTrack());
         trackMenu.getItems().add(newTrack);
 
-        // (8) Edit menu with Undo/Redo
         Menu editMenu = new Menu("Edit");
         MenuItem undoItem = new MenuItem("Undo");
         undoItem.setAccelerator(javafx.scene.input.KeyCombination.keyCombination("Ctrl+Z"));
@@ -210,7 +212,6 @@ public class TrackerFxApp extends Application {
     }
 
     private VBox buildVideoPanel() {
-        // Canvas with black background
         videoCanvas = new Canvas(canvasWidth, canvasHeight);
         gc = videoCanvas.getGraphicsContext2D();
         clearCanvas();
@@ -220,11 +221,9 @@ public class TrackerFxApp extends Application {
         canvasWrapper.setPrefSize(canvasWidth, canvasHeight);
         canvasWrapper.setMaxSize(canvasWidth, canvasHeight);
 
-        // Mouse handler for marking points or collecting stick endpoints
         videoCanvas.setOnMouseClicked(e -> {
             if (videoSource == null || !videoSource.isOpen()) return;
 
-            // (5) Stick mode: collect two clicks then calibrate
             if (stickButton != null && stickButton.isSelected()) {
                 double[] pixelCoords = canvasToVideoPixel(e.getX(), e.getY());
                 if (pixelCoords == null) return;
@@ -243,6 +242,7 @@ public class TrackerFxApp extends Application {
                             Calibration newCal = CalibrationStickTool.calibrate(
                                     project.getCalibration(), x1, y1, x2, y2, realLength);
                             project.setCalibration(newCal);
+                            refreshTrajectoryPlot();
                             displayFrame(currentFrame);
                         } catch (NumberFormatException ex) {
                             showError("Invalid input", "Please enter a valid number.");
@@ -250,10 +250,9 @@ public class TrackerFxApp extends Application {
                     });
                     stickButton.setSelected(false);
                 }
-                return; // suppress mark mode while stick is active
+                return;
             }
 
-            // Normal mark mode
             if (markButton != null && markButton.isSelected()) {
                 double[] pixelCoords = canvasToVideoPixel(e.getX(), e.getY());
                 if (pixelCoords != null) {
@@ -262,7 +261,6 @@ public class TrackerFxApp extends Application {
             }
         });
 
-        // Frame controls
         frameSlider = new Slider(0, 1, 0);
         frameSlider.setShowTickMarks(false);
         frameSlider.setShowTickLabels(false);
@@ -291,7 +289,6 @@ public class TrackerFxApp extends Application {
 
         markButton = new ToggleButton("📍 Mark");
         markButton.setDisable(true);
-        // (5) When mark is toggled on, deselect stick
         markButton.selectedProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal && stickButton != null && stickButton.isSelected()) {
                 stickButton.setSelected(false);
@@ -299,33 +296,29 @@ public class TrackerFxApp extends Application {
             }
         });
 
-        // (5) Calibration stick toggle button
         stickButton = new ToggleButton("📏 Stick");
         stickButton.setDisable(true);
         stickButton.selectedProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal) {
                 stickPoints.clear();
-                // deselect mark mode
                 if (markButton != null) markButton.setSelected(false);
             } else {
                 stickPoints.clear();
             }
         });
 
-        // (9) Auto-track button
+        vectorsButton = new ToggleButton("↗ Vectors");
+        vectorsButton.selectedProperty().addListener((obs, oldVal, newVal) -> displayFrame(currentFrame));
+
         Button autoTrackButton = new Button("🤖 Auto-track");
         autoTrackButton.setDisable(true);
         autoTrackButton.setOnAction(e -> runAutoTrack());
-        // Enable when video is loaded (we'll enable in loadVideo)
-        // Store reference for enabling later
+        autoTrackButton.setId("autoTrackButton");
         videoInfoLabel = new Label("No video loaded");
         videoInfoLabel.setStyle("-fx-text-fill: #888;");
 
-        // Keep auto-track button ref accessible in loadVideo via a tag
-        autoTrackButton.setId("autoTrackButton");
-
         HBox controls = new HBox(10, prevButton, playButton, nextButton, frameLabel,
-                markButton, stickButton, autoTrackButton);
+                markButton, stickButton, vectorsButton, autoTrackButton);
         controls.setAlignment(Pos.CENTER);
         controls.setPadding(new Insets(10));
 
@@ -362,7 +355,7 @@ public class TrackerFxApp extends Application {
         trackListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
                 currentTrack = newVal;
-                controller.setActiveTrack(newVal);  // (3) wire controller on selection
+                controller.setActiveTrack(newVal);
                 pointList.setAll(currentTrack.getPoints());
                 refreshTrajectoryPlot();
                 displayFrame(currentFrame);
@@ -376,13 +369,12 @@ public class TrackerFxApp extends Application {
         pointTable = new TableView<>();
         pointTable.setItems(pointList);
         pointTable.setPrefHeight(200);
-        pointTable.setEditable(true);  // (6) editable table
+        pointTable.setEditable(true);
 
         TableColumn<Point, Number> frameCol = new TableColumn<>("Frame");
         frameCol.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>(c.getValue().getFrame()));
         frameCol.setPrefWidth(55);
 
-        // (6) Editable X column
         TableColumn<Point, Double> xCol = new TableColumn<>("X (px)");
         xCol.setCellValueFactory(c -> new ReadOnlyObjectWrapper<>((Double) c.getValue().pixelX()));
         xCol.setCellFactory(TextFieldTableCell.forTableColumn(new DoubleStringConverter()));
@@ -418,17 +410,114 @@ public class TrackerFxApp extends Application {
             return row;
         });
 
-        NumberAxis xAxis = new NumberAxis(); xAxis.setLabel("X (pixels)");
-        NumberAxis yAxis = new NumberAxis(); yAxis.setLabel("Y (pixels)");
-        LineChart<Number, Number> plot = new LineChart<>(xAxis, yAxis);
-        plot.setTitle("Trajectory"); plot.setPrefHeight(300); plot.setLegendVisible(false); plot.setAnimated(false);
+        xAxisChoice = new ChoiceBox<>();
+        xAxisChoice.getItems().addAll(AnalysisVariable.values());
+        xAxisChoice.setValue(AnalysisVariable.TIME);
+
+        yAxisChoice = new ChoiceBox<>();
+        yAxisChoice.getItems().addAll(AnalysisVariable.values());
+        yAxisChoice.setValue(AnalysisVariable.WORLD_Y);
+
+        xAxisChoice.valueProperty().addListener((obs, oldVal, newVal) -> refreshTrajectoryPlot());
+        yAxisChoice.valueProperty().addListener((obs, oldVal, newVal) -> refreshTrajectoryPlot());
+
+        HBox axisSelectorBox = new HBox(8,
+            new Label("X:"), xAxisChoice,
+            new Label("Y:"), yAxisChoice);
+        axisSelectorBox.setAlignment(Pos.CENTER_LEFT);
+        axisSelectorBox.setPadding(new Insets(4, 0, 4, 0));
+
+        NumberAxis xAxis = new NumberAxis();
+        xAxis.setLabel(AnalysisVariable.TIME.label());
+        NumberAxis yAxis = new NumberAxis();
+        yAxis.setLabel(AnalysisVariable.WORLD_Y.label());
+        plot = new LineChart<>(xAxis, yAxis);
+        plot.setTitle("Trajectory");
+        plot.setPrefHeight(280);
+        plot.setLegendVisible(false);
+        plot.setAnimated(false);
         trajectorySeries = new XYChart.Series<>();
         plot.getData().add(trajectorySeries);
 
-        VBox panel = new VBox(10, trackListTitle, trackListView, tableTitle, pointTable, plot);
+        kinematicsLabel = new Label("frame=0  (no data)");
+        kinematicsLabel.setWrapText(true);
+        kinematicsLabel.setStyle("-fx-font-size: 11; -fx-font-family: monospace;");
+
+        VBox panel = new VBox(10, trackListTitle, trackListView, tableTitle, pointTable,
+                axisSelectorBox, plot, kinematicsLabel);
         panel.setPadding(new Insets(10));
         VBox.setVgrow(plot, Priority.ALWAYS);
         return panel;
+    }
+
+    private TrackAnalyzer.KinematicResult analyzeCurrent() {
+        if (currentTrack == null || currentTrack.pointCount() < 3) {
+            return TrackAnalyzer.KinematicResult.empty();
+        }
+        double fps = (videoSource != null && videoSource.isOpen()) ? videoSource.getFrameRate() : 30.0;
+        double dt = 1.0 / Math.max(1.0, fps);
+        org.opensourcephysics.cabrillo.tracker.calibration.Calibration cal = project.getCalibration();
+        org.opensourcephysics.cabrillo.tracker.data.model.Track withWorld = currentTrack;
+        for (var p : currentTrack.getPoints()) {
+            if (!p.hasWorld() && p.hasPixel()) {
+                var w = cal.toWorld(p.pixelX(), p.pixelY());
+                withWorld = withWorld.withPoint(p.getFrame(),
+                    p.withWorld(w.x(), w.y()));
+            }
+        }
+        return new TrackAnalyzer(dt).analyze(withWorld);
+    }
+
+    private void refreshTrajectoryPlot() {
+        trajectorySeries.getData().clear();
+        if (xAxisChoice == null || yAxisChoice == null) return;
+        var r = analyzeCurrent();
+        int n = AnalysisVariable.sampleCount(r);
+        AnalysisVariable xv = xAxisChoice.getValue();
+        AnalysisVariable yv = yAxisChoice.getValue();
+        if (xv == null || yv == null) return;
+        for (int i = 0; i < n; i++) {
+            double x = xv.valueAt(r, i);
+            double y = yv.valueAt(r, i);
+            if (Double.isNaN(x) || Double.isNaN(y)) continue;
+            trajectorySeries.getData().add(new javafx.scene.chart.XYChart.Data<>(x, y));
+        }
+        if (plot != null) {
+            ((javafx.scene.chart.NumberAxis) plot.getXAxis()).setLabel(xv.label());
+            ((javafx.scene.chart.NumberAxis) plot.getYAxis()).setLabel(yv.label());
+        }
+        updateKinematicsLabel();
+    }
+
+    private void updateKinematicsLabel() {
+        if (kinematicsLabel == null) return;
+        if (currentTrack == null) {
+            kinematicsLabel.setText("frame=" + currentFrame + "  (no data)");
+            return;
+        }
+        var r = analyzeCurrent();
+        List<Integer> frames = currentTrack.frames();
+        int idx = -1;
+        for (int i = 0; i < frames.size(); i++) {
+            if (frames.get(i) == currentFrame) { idx = i; break; }
+        }
+        if (idx < 0 || !r.hasData()) {
+            kinematicsLabel.setText("frame=" + currentFrame + "  (no data)");
+            return;
+        }
+        double t  = r.times().size()  > idx ? r.times().get(idx)  : Double.NaN;
+        double x  = r.xs().size()     > idx ? r.xs().get(idx)     : Double.NaN;
+        double y  = r.ys().size()     > idx ? r.ys().get(idx)     : Double.NaN;
+        double vx = r.vx().size()     > idx ? r.vx().get(idx)     : Double.NaN;
+        double vy = r.vy().size()     > idx ? r.vy().get(idx)     : Double.NaN;
+        double ax = r.ax().size()     > idx ? r.ax().get(idx)     : Double.NaN;
+        double ay = r.ay().size()     > idx ? r.ay().get(idx)     : Double.NaN;
+        double speed = (Double.isNaN(vx) || Double.isNaN(vy)) ? Double.NaN : Math.hypot(vx, vy);
+        kinematicsLabel.setText(String.format(
+            "frame=%d  t=%.3f s  x=%.3f m  y=%.3f m%n" +
+            "vx=%.3f m/s  vy=%.3f m/s  |v|=%.3f m/s%n" +
+            "ax=%.3f m/s²  ay=%.3f m/s²",
+            currentFrame, t, x, y, vx, vy, speed, ax, ay));
     }
 
     private void openVideoDialog(Stage stage) {
@@ -442,9 +531,7 @@ public class TrackerFxApp extends Application {
     }
 
     private void loadVideo(Path path) {
-        if (videoSource != null) {
-            videoSource.close();
-        }
+        if (videoSource != null) videoSource.close();
         videoSource = new FFmpegVideoSource(50);
         try {
             videoSource.open(path);
@@ -471,7 +558,6 @@ public class TrackerFxApp extends Application {
                 videoSource.getFrameRate(), frameCount));
 
             displayFrame(0);
-
         } catch (Exception e) {
             showError("Failed to load video", e.getMessage());
             videoSource = null;
@@ -490,12 +576,13 @@ public class TrackerFxApp extends Application {
         Image fxImage = SwingFXUtils.toFXImage(frame, null);
         drawVideoFrame(fxImage, frame.getWidth(), frame.getHeight());
         drawTrackedPoints(frameIndex);
-        drawAxes();  // (4) coordinate axes overlay
+        drawAxes();
 
         int total = videoSource.getFrameCount();
         frameLabel.setText(String.format("Frame: %d / %d", frameIndex, Math.max(0, total - 1)));
         frameSlider.setValue(frameIndex);
         currentFrame = frameIndex;
+        updateKinematicsLabel();
     }
 
     private void drawVideoFrame(Image image, int imgWidth, int imgHeight) {
@@ -515,6 +602,50 @@ public class TrackerFxApp extends Application {
                 double[] c = videoPixelToCanvas(p.pixelX(), p.pixelY());
                 if (c != null) { gc.fillOval(c[0]-5,c[1]-5,10,10); gc.strokeOval(c[0]-8,c[1]-8,16,16); }
             });
+        }
+
+        if (vectorsButton != null && vectorsButton.isSelected() && currentTrack != null) {
+            TrackAnalyzer.KinematicResult r = analyzeCurrent();
+            if (r.hasData()) {
+                List<Integer> frames = currentTrack.frames();
+                Calibration cal = project.getCalibration();
+                final double arrowScale = 0.3;
+                gc.setStroke(Color.MAGENTA);
+                gc.setFill(Color.MAGENTA);
+                gc.setLineWidth(2.0);
+                for (int i = 0; i < frames.size(); i++) {
+                    int f = frames.get(i);
+                    Point p = currentTrack.point(f).orElse(null);
+                    if (p == null || !p.hasWorld()) continue;
+                    if (i >= r.vx().size() || i >= r.vy().size()) continue;
+                    double vx = r.vx().get(i);
+                    double vy = r.vy().get(i);
+                    if (Double.isNaN(vx) || Double.isNaN(vy)) continue;
+
+                    double[] base = videoPixelToCanvas(p.pixelX(), p.pixelY());
+                    if (base == null) continue;
+                    Calibration.PixelPoint tipPix = cal.toPixel(
+                        p.worldX() + vx * arrowScale,
+                        p.worldY() + vy * arrowScale);
+                    double[] tip = videoPixelToCanvas(tipPix.x(), tipPix.y());
+                    if (tip == null) continue;
+
+                    double dx = tip[0] - base[0];
+                    double dy = tip[1] - base[1];
+                    double len = Math.hypot(dx, dy);
+                    if (len < 1.0) continue;
+                    double headLen = Math.min(10.0, len * 0.4);
+                    double shaftEndX = base[0] + dx * (len - headLen) / len;
+                    double shaftEndY = base[1] + dy * (len - headLen) / len;
+                    gc.strokeLine(base[0], base[1], shaftEndX, shaftEndY);
+                    double px = -dy / len, py = dx / len;
+                    double hw = 4.0;
+                    gc.fillPolygon(
+                        new double[]{ tip[0], shaftEndX + px * hw, shaftEndX - px * hw },
+                        new double[]{ tip[1], shaftEndY + py * hw, shaftEndY - py * hw },
+                        3);
+                }
+            }
         }
     }
 
@@ -559,21 +690,9 @@ public class TrackerFxApp extends Application {
         return new double[]{cx, cy};
     }
 
-    // (2) markPoint delegates to controller; listener handles the rest
     private void markPoint(double pixelX, double pixelY) {
         controller.setCurrentFrame(currentFrame);
         controller.addPoint(pixelX, pixelY);
-        // The TrackingListener (onTrackChanged) refreshes pointList, plot, and canvas
-    }
-
-    private void refreshTrajectoryPlot() {
-        trajectorySeries.getData().clear();
-        if (currentTrack == null) return;
-        for (Point p : currentTrack.getPoints()) {
-            if (p.hasPixel()) {
-                trajectorySeries.getData().add(new XYChart.Data<>(p.pixelX(), p.pixelY()));
-            }
-        }
     }
 
     private void stepFrame(int delta) {
@@ -582,13 +701,7 @@ public class TrackerFxApp extends Application {
         displayFrame(Math.max(0, Math.min(currentFrame+delta, max)));
     }
 
-    private void togglePlay() {
-        if (isPlaying) {
-            stopPlayback();
-        } else {
-            startPlayback();
-        }
-    }
+    private void togglePlay() { if (isPlaying) stopPlayback(); else startPlayback(); }
 
     private void startPlayback() {
         if (videoSource == null || !videoSource.isOpen()) return;
@@ -637,7 +750,6 @@ public class TrackerFxApp extends Application {
         pointList.clear(); trajectorySeries.getData().clear();
     }
 
-    // (9) Auto-track: template matcher over up to 30 subsequent frames
     private void runAutoTrack() {
         if (videoSource == null || !videoSource.isOpen()) return;
         if (currentTrack == null || currentTrack.point(currentFrame).isEmpty()) {
@@ -665,7 +777,6 @@ public class TrackerFxApp extends Application {
 
             controller.setCurrentFrame(f);
             controller.addPoint(m.pixelX(), m.pixelY());
-            // Listener updates currentTrack; re-fetch from project list
             for (Track t : project.getTracks()) {
                 if (t.id().equals(currentTrack.id())) {
                     currentTrack = t;
@@ -676,7 +787,6 @@ public class TrackerFxApp extends Application {
         displayFrame(currentFrame);
     }
 
-    // (10) Save project to JSON
     private void saveProjectDialog(Stage stage) {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Save Project");
@@ -691,7 +801,6 @@ public class TrackerFxApp extends Application {
         }
     }
 
-    // (10) Load project from JSON
     private void openProjectDialog(Stage stage) {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Open Project");

@@ -1,3 +1,4 @@
+org/opensourcephysics/cabrillo/tracker/analysis/AnalysisVariableTest.class
 org/opensourcephysics/cabrillo/tracker/persist/GsonProjectSerializerTest.class
 org/opensourcephysics/cabrillo/tracker/tracking/TrackingControllerTest.class
 org/opensourcephysics/cabrillo/tracker/analysis/TrackAnalyzerTest.class

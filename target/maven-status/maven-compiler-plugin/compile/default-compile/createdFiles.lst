@@ -3,6 +3,7 @@ org/opensourcephysics/cabrillo/tracker/tracking/TrackingController.class
 org/opensourcephysics/cabrillo/tracker/analysis/CurveFitter$LinearResult.class
 org/opensourcephysics/cabrillo/tracker/ui/TrackerFxApp$2.class
 org/opensourcephysics/cabrillo/tracker/persist/GsonProjectSerializer$TrackData.class
+org/opensourcephysics/cabrillo/tracker/analysis/AnalysisVariable.class
 org/opensourcephysics/cabrillo/tracker/video/PlaybackController.class
 org/opensourcephysics/cabrillo/tracker/project/ProjectConfiguration.class
 org/opensourcephysics/cabrillo/tracker/ui/CalibrationStickTool.class

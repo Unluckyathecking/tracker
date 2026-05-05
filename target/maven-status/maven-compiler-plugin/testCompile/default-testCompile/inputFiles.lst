@@ -5,4 +5,5 @@
 /home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/tracking/TrackingControllerTest.java
 /home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/video/VideoSourceTest.java
 /home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/calibration/CalibrationTest.java
+/home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/analysis/AnalysisVariableTest.java
 /home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/persist/GsonProjectSerializerTest.java

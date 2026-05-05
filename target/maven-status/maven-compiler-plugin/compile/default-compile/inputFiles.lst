@@ -6,6 +6,7 @@
 /home/user/tracker/src/main/java/org/opensourcephysics/cabrillo/tracker/data/model/TrackType.java
 /home/user/tracker/src/main/java/org/opensourcephysics/cabrillo/tracker/analysis/CurveFitter.java
 /home/user/tracker/src/main/java/org/opensourcephysics/cabrillo/tracker/video/FFmpegVideoSource.java
+/home/user/tracker/src/main/java/org/opensourcephysics/cabrillo/tracker/analysis/AnalysisVariable.java
 /home/user/tracker/src/main/java/org/opensourcephysics/cabrillo/tracker/video/VideoSource.java
 /home/user/tracker/src/main/java/org/opensourcephysics/cabrillo/tracker/video/PlaybackState.java
 /home/user/tracker/src/main/java/org/opensourcephysics/cabrillo/tracker/video/VideoPlaybackController.java
