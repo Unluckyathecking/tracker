@@ -82,7 +82,7 @@ public class FrameCache {
             throw new IllegalStateException("frameIndex cannot be negative: " + frameIndex);
         }
 
-        lock.readLock().lock();
+        lock.writeLock().lock();
         try {
             BufferedImage frame = cache.get(frameIndex);
             if (frame != null) {
@@ -90,7 +90,7 @@ public class FrameCache {
             }
             return frame;
         } finally {
-            lock.readLock().unlock();
+            lock.writeLock().unlock();
         }
     }
 

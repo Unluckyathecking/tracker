@@ -231,9 +231,9 @@ public class VideoPlaybackController implements PlaybackController {
                 throw new IllegalArgumentException("Frame index cannot be negative: " + frameIndex);
             }
 
-            if (totalFrames >= 0 && frameIndex > totalFrames) {
+            if (totalFrames >= 0 && frameIndex >= totalFrames) {
                 throw new IllegalArgumentException("Frame index out of bounds: " + frameIndex +
-                    " (max: " + totalFrames + ")");
+                    " (max: " + (totalFrames - 1) + ")");
             }
 
             videoSource.seek(frameIndex);
@@ -385,8 +385,9 @@ public class VideoPlaybackController implements PlaybackController {
                 return -1;
             }
 
-            seek(currentPosition + 1);
-            firePlaybackFrameChanged(currentPosition + 1);
+            int newPosition = currentPosition + 1;
+            seek(newPosition);
+            firePlaybackFrameChanged(currentPosition);
             return currentPosition;
         } finally {
             lock.writeLock().unlock();
@@ -405,9 +406,10 @@ public class VideoPlaybackController implements PlaybackController {
                 return 0;
             }
 
-            seek(currentPosition - 1);
-            firePlaybackFrameChanged(currentPosition - 1);
-            return currentPosition - 1;
+            int newPosition = currentPosition - 1;
+            seek(newPosition);
+            firePlaybackFrameChanged(currentPosition);
+            return currentPosition;
         } finally {
             lock.writeLock().unlock();
         }
@@ -497,23 +499,25 @@ public class VideoPlaybackController implements PlaybackController {
      * @param position the new position
      */
     private void firePlaybackPositionChanged(int position) {
+        List<PlaybackListener> listenerCopy;
+        double time;
+        double duration;
+
         lock.readLock().lock();
         try {
-            double time = currentPosition / frameRate;
-            double duration = totalFrames / frameRate;
-
-            List<PlaybackListener> listenerCopy = new ArrayList<>(listeners);
-            lock.readLock().unlock();
-
-            for (PlaybackListener listener : listenerCopy) {
-                try {
-                    listener.playbackPositionChanged(position, time, duration);
-                } catch (Exception e) {
-                    System.err.println("Error in playback listener: " + e.getMessage());
-                }
-            }
+            listenerCopy = new ArrayList<>(listeners);
+            time = currentPosition / frameRate;
+            duration = totalFrames / frameRate;
         } finally {
             lock.readLock().unlock();
+        }
+
+        for (PlaybackListener listener : listenerCopy) {
+            try {
+                listener.playbackPositionChanged(position, time, duration);
+            } catch (Exception e) {
+                System.err.println("Error in playback listener: " + e.getMessage());
+            }
         }
     }
 
@@ -523,20 +527,21 @@ public class VideoPlaybackController implements PlaybackController {
      * @param frame the new frame index
      */
     private void firePlaybackFrameChanged(int frame) {
+        List<PlaybackListener> listenerCopy;
+
         lock.readLock().lock();
         try {
-            List<PlaybackListener> listenerCopy = new ArrayList<>(listeners);
-            lock.readLock().unlock();
-
-            for (PlaybackListener listener : listenerCopy) {
-                try {
-                    listener.playbackFrameChanged(frame);
-                } catch (Exception e) {
-                    System.err.println("Error in playback listener: " + e.getMessage());
-                }
-            }
+            listenerCopy = new ArrayList<>(listeners);
         } finally {
             lock.readLock().unlock();
+        }
+
+        for (PlaybackListener listener : listenerCopy) {
+            try {
+                listener.playbackFrameChanged(frame);
+            } catch (Exception e) {
+                System.err.println("Error in playback listener: " + e.getMessage());
+            }
         }
     }
 
