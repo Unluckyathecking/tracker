@@ -5,37 +5,62 @@ import org.opensourcephysics.cabrillo.tracker.data.model.Point;
 /**
  * Calibration transforms between pixel coordinates and world coordinates.
  * scale = meters per pixel. origin = pixel location of world (0,0).
+ * angle = counter-clockwise rotation (radians) of the world +X axis relative to
+ * the pixel +X axis (in display orientation, with pixel Y flipped to be "up").
  * Immutable.
  */
 public final class Calibration {
     private final double scale;      // meters per pixel
     private final double originX;    // pixel X where world X = 0
     private final double originY;    // pixel Y where world Y = 0 (Y grows UP in world)
+    private final double angle;      // radians, CCW
 
     public Calibration() {
-        this(1.0, 0, 0);
+        this(1.0, 0, 0, 0);
     }
 
     public Calibration(double scale, double originX, double originY) {
+        this(scale, originX, originY, 0);
+    }
+
+    public Calibration(double scale, double originX, double originY, double angle) {
         this.scale = scale;
         this.originX = originX;
         this.originY = originY;
+        this.angle = angle;
     }
 
     public double scale() { return scale; }
     public double originX() { return originX; }
     public double originY() { return originY; }
+    public double angle() { return angle; }
 
-    /** Return a new Calibration with different scale and origin. */
+    /** Return a new Calibration with different scale and origin (preserving angle). */
     public Calibration withScale(double scale, double originX, double originY) {
-        return new Calibration(scale, originX, originY);
+        return new Calibration(scale, originX, originY, this.angle);
+    }
+
+    /** Return a new Calibration with a different rotation. */
+    public Calibration withAngle(double angle) {
+        return new Calibration(scale, originX, originY, angle);
+    }
+
+    /** Return a new Calibration with a different origin. */
+    public Calibration withOrigin(double originX, double originY) {
+        return new Calibration(scale, originX, originY, angle);
     }
 
     /** Convert pixel coordinates to world coordinates. */
     public WorldPoint toWorld(double pixelX, double pixelY) {
-        double wx = (pixelX - originX) * scale;
-        double wy = (originY - pixelY) * scale; // Y flips: pixel Y grows down, world Y grows up
-        return new WorldPoint(wx, wy);
+        // Translate so origin is at (0,0); flip Y so "up" is positive.
+        double dx = pixelX - originX;
+        double dy = originY - pixelY;
+        // Rotate by -angle to align with world axes.
+        double cos = Math.cos(angle);
+        double sin = Math.sin(angle);
+        double rx =  dx * cos + dy * sin;
+        double ry = -dx * sin + dy * cos;
+        return new WorldPoint(rx * scale, ry * scale);
     }
 
     /** Convert a pixel Point to world coordinates. */
@@ -45,9 +70,14 @@ public final class Calibration {
 
     /** Convert world coordinates to pixel coordinates. */
     public PixelPoint toPixel(double worldX, double worldY) {
-        double px = originX + worldX / scale;
-        double py = originY - worldY / scale; // Y flips back
-        return new PixelPoint(px, py);
+        double wx = worldX / scale;
+        double wy = worldY / scale;
+        // Rotate by +angle back into pixel-aligned axes.
+        double cos = Math.cos(angle);
+        double sin = Math.sin(angle);
+        double dx = wx * cos - wy * sin;
+        double dy = wx * sin + wy * cos;
+        return new PixelPoint(originX + dx, originY - dy);
     }
 
     /** Convert a world Point to pixel coordinates. */

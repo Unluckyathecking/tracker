@@ -8,5 +8,6 @@
 /src/testing/ 
 src/org/opensourcephysics/controls/OSPLog_template.txt
 /tmp/
+/target/
 tracker.prefs
 //.classpath
