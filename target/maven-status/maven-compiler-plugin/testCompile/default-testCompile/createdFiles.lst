@@ -1,0 +1,6 @@
+org/opensourcephysics/cabrillo/tracker/analysis/TrackAnalyzerTest.class
+org/opensourcephysics/cabrillo/tracker/calibration/CalibrationTest.class
+org/opensourcephysics/cabrillo/tracker/video/VideoSourceTest.class
+org/opensourcephysics/cabrillo/tracker/data/model/PointTest.class
+org/opensourcephysics/cabrillo/tracker/persist/GsonProjectSerializerTest.class
+org/opensourcephysics/cabrillo/tracker/data/model/TrackTest.class
