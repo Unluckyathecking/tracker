@@ -1,6 +1,8 @@
-/tmp/tracker_rebuild/src/test/java/org/opensourcephysics/cabrillo/tracker/analysis/TrackAnalyzerTest.java
-/tmp/tracker_rebuild/src/test/java/org/opensourcephysics/cabrillo/tracker/data/model/PointTest.java
-/tmp/tracker_rebuild/src/test/java/org/opensourcephysics/cabrillo/tracker/calibration/CalibrationTest.java
-/tmp/tracker_rebuild/src/test/java/org/opensourcephysics/cabrillo/tracker/data/model/TrackTest.java
-/tmp/tracker_rebuild/src/test/java/org/opensourcephysics/cabrillo/tracker/persist/GsonProjectSerializerTest.java
-/tmp/tracker_rebuild/src/test/java/org/opensourcephysics/cabrillo/tracker/video/VideoSourceTest.java
+/home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/tracking/TemplateMatcherTest.java
+/home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/data/model/PointTest.java
+/home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/data/model/TrackTest.java
+/home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/analysis/TrackAnalyzerTest.java
+/home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/tracking/TrackingControllerTest.java
+/home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/video/VideoSourceTest.java
+/home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/calibration/CalibrationTest.java
+/home/user/tracker/src/test/java/org/opensourcephysics/cabrillo/tracker/persist/GsonProjectSerializerTest.java
