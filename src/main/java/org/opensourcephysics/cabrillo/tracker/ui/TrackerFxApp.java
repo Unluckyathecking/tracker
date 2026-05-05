@@ -17,6 +17,8 @@ import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.image.Image;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -26,6 +28,10 @@ import javafx.stage.Stage;
 import javafx.util.converter.DoubleStringConverter;
 
 import org.opensourcephysics.cabrillo.tracker.analysis.AnalysisVariable;
+import org.opensourcephysics.cabrillo.tracker.analysis.CenterOfMass;
+import org.opensourcephysics.cabrillo.tracker.analysis.ModelFitter;
+import org.opensourcephysics.cabrillo.tracker.analysis.ProjectileModel;
+import org.opensourcephysics.cabrillo.tracker.analysis.Protractor;
 import org.opensourcephysics.cabrillo.tracker.analysis.TrackAnalyzer;
 import org.opensourcephysics.cabrillo.tracker.calibration.Calibration;
 import org.opensourcephysics.cabrillo.tracker.data.model.Point;
@@ -82,6 +88,8 @@ public class TrackerFxApp extends Application {
     private ToggleButton markButton;
     private ToggleButton stickButton;
     private ToggleButton vectorsButton;
+    private ToggleButton protractorButton;
+    private Label protractorLabel;
     private ListView<Track> trackListView;
     private ObservableList<Track> trackList;
 
@@ -90,9 +98,14 @@ public class TrackerFxApp extends Application {
     private ChoiceBox<AnalysisVariable> yAxisChoice;
     private LineChart<Number, Number> plot;
     private Label kinematicsLabel;
+    private XYChart.Series<Number, Number> modelSeries;
+    private ProjectileModel.Fit lastFit;
 
     // Calibration stick state
     private final List<double[]> stickPoints = new ArrayList<>();
+
+    // Protractor state
+    private final java.util.List<double[]> protractorPoints = new java.util.ArrayList<>();
 
     // Stage reference for dialogs
     private Stage primaryStage;
@@ -194,7 +207,14 @@ public class TrackerFxApp extends Application {
         Menu trackMenu = new Menu("Track");
         MenuItem newTrack = new MenuItem("New Track");
         newTrack.setOnAction(e -> createNewTrack());
-        trackMenu.getItems().add(newTrack);
+
+        MenuItem addCoM = new MenuItem("Add Center of Mass...");
+        addCoM.setOnAction(e -> addCenterOfMass());
+
+        MenuItem fitProjectile = new MenuItem("Fit Projectile Model...");
+        fitProjectile.setOnAction(e -> fitProjectileModel());
+
+        trackMenu.getItems().addAll(newTrack, new SeparatorMenuItem(), addCoM, fitProjectile);
 
         Menu editMenu = new Menu("Edit");
         MenuItem undoItem = new MenuItem("Undo");
@@ -211,6 +231,86 @@ public class TrackerFxApp extends Application {
         return bar;
     }
 
+    private void addCenterOfMass() {
+        List<Track> tracks = project.getTracks();
+        if (tracks.size() < 2) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Center of Mass");
+            alert.setHeaderText(null);
+            alert.setContentText("Need at least 2 tracks");
+            alert.showAndWait();
+            return;
+        }
+        StringBuilder defaultMasses = new StringBuilder();
+        for (int i = 0; i < tracks.size(); i++) {
+            if (i > 0) defaultMasses.append(", ");
+            defaultMasses.append("1");
+        }
+        TextInputDialog dlg = new TextInputDialog(defaultMasses.toString());
+        dlg.setTitle("Center of Mass");
+        dlg.setHeaderText("Enter masses (comma-separated) for each track:");
+        dlg.setContentText("Masses:");
+        dlg.showAndWait().ifPresent(input -> {
+            try {
+                String[] parts = input.split(",");
+                double[] masses = new double[parts.length];
+                for (int i = 0; i < parts.length; i++) {
+                    masses[i] = Double.parseDouble(parts[i].trim());
+                    if (masses[i] <= 0) throw new NumberFormatException("Mass must be positive");
+                }
+                Track comTrack = CenterOfMass.compute("Center of Mass", tracks, masses);
+                project.addTrack(comTrack);
+                trackList.setAll(project.getTracks());
+                trackListView.getSelectionModel().select(comTrack);
+            } catch (NumberFormatException ex) {
+                Alert err = new Alert(Alert.AlertType.ERROR);
+                err.setTitle("Invalid Input");
+                err.setHeaderText(null);
+                err.setContentText("Invalid mass value: " + ex.getMessage());
+                err.showAndWait();
+            }
+        });
+    }
+
+    private void fitProjectileModel() {
+        if (currentTrack == null || currentTrack.pointCount() < 3) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Fit Projectile Model");
+            alert.setHeaderText(null);
+            alert.setContentText("Select a track with at least 3 points");
+            alert.showAndWait();
+            return;
+        }
+        double fps = (videoSource != null && videoSource.isOpen()) ? videoSource.getFrameRate() : 30.0;
+        double dt = 1.0 / Math.max(1.0, fps);
+        try {
+            ProjectileModel.Fit fit = ModelFitter.fit(currentTrack, dt);
+            lastFit = fit;
+            ProjectileModel.Parameters p = fit.parameters();
+            String msg = String.format(
+                "x(t) = %.3f + %.3f·t%n" +
+                "y(t) = %.3f + %.3f·t + 0.5·(%.3f)·t²%n" +
+                "g = %.3f m/s²%n" +
+                "RMSE x = %.4f, y = %.4f",
+                p.x0(), p.vx0(),
+                p.y0(), p.vy0(), p.g(),
+                p.g(),
+                fit.rmseX(), fit.rmseY());
+            Alert result = new Alert(Alert.AlertType.INFORMATION);
+            result.setTitle("Projectile Model Fit");
+            result.setHeaderText(null);
+            result.setContentText(msg);
+            result.showAndWait();
+            refreshTrajectoryPlot();
+        } catch (IllegalArgumentException ex) {
+            Alert err = new Alert(Alert.AlertType.ERROR);
+            err.setTitle("Fit Failed");
+            err.setHeaderText(null);
+            err.setContentText("Could not fit model: " + ex.getMessage());
+            err.showAndWait();
+        }
+    }
+
     private VBox buildVideoPanel() {
         videoCanvas = new Canvas(canvasWidth, canvasHeight);
         gc = videoCanvas.getGraphicsContext2D();
@@ -223,6 +323,41 @@ public class TrackerFxApp extends Application {
 
         videoCanvas.setOnMouseClicked(e -> {
             if (videoSource == null || !videoSource.isOpen()) return;
+
+            if (protractorButton != null && protractorButton.isSelected()) {
+                double[] pixelCoords = canvasToVideoPixel(e.getX(), e.getY());
+                if (pixelCoords == null) return;
+                protractorPoints.add(new double[]{e.getX(), e.getY()});
+                if (protractorPoints.size() == 3) {
+                    double[] vertex = protractorPoints.get(0);
+                    double[] armA   = protractorPoints.get(1);
+                    double[] armB   = protractorPoints.get(2);
+                    try {
+                        Protractor.Reading reading = Protractor.angle(
+                            vertex[0], vertex[1],
+                            armA[0],   armA[1],
+                            armB[0],   armB[1]);
+                        String text = String.format("Angle: %.2f° (%.4f rad)",
+                            reading.degrees(), reading.radians());
+                        if (protractorLabel != null) {
+                            protractorLabel.setText(text);
+                            protractorLabel.setVisible(true);
+                        }
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                        alert.setTitle("Protractor");
+                        alert.setHeaderText(null);
+                        alert.setContentText(text);
+                        alert.showAndWait();
+                    } catch (IllegalArgumentException ex) {
+                        showError("Protractor Error", ex.getMessage());
+                    }
+                    protractorPoints.clear();
+                    protractorButton.setSelected(false);
+                } else {
+                    displayFrame(currentFrame);
+                }
+                return;
+            }
 
             if (stickButton != null && stickButton.isSelected()) {
                 double[] pixelCoords = canvasToVideoPixel(e.getX(), e.getY());
@@ -290,9 +425,15 @@ public class TrackerFxApp extends Application {
         markButton = new ToggleButton("📍 Mark");
         markButton.setDisable(true);
         markButton.selectedProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal && stickButton != null && stickButton.isSelected()) {
-                stickButton.setSelected(false);
-                stickPoints.clear();
+            if (newVal) {
+                if (stickButton != null && stickButton.isSelected()) {
+                    stickButton.setSelected(false);
+                    stickPoints.clear();
+                }
+                if (protractorButton != null && protractorButton.isSelected()) {
+                    protractorButton.setSelected(false);
+                    protractorPoints.clear();
+                }
             }
         });
 
@@ -302,6 +443,10 @@ public class TrackerFxApp extends Application {
             if (newVal) {
                 stickPoints.clear();
                 if (markButton != null) markButton.setSelected(false);
+                if (protractorButton != null && protractorButton.isSelected()) {
+                    protractorButton.setSelected(false);
+                    protractorPoints.clear();
+                }
             } else {
                 stickPoints.clear();
             }
@@ -309,6 +454,25 @@ public class TrackerFxApp extends Application {
 
         vectorsButton = new ToggleButton("↗ Vectors");
         vectorsButton.selectedProperty().addListener((obs, oldVal, newVal) -> displayFrame(currentFrame));
+
+        protractorButton = new ToggleButton("📐 Protractor");
+        protractorButton.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal) {
+                protractorPoints.clear();
+                if (markButton != null && markButton.isSelected()) markButton.setSelected(false);
+                if (stickButton != null && stickButton.isSelected()) {
+                    stickButton.setSelected(false);
+                    stickPoints.clear();
+                }
+            } else {
+                protractorPoints.clear();
+            }
+            if (protractorLabel != null) protractorLabel.setVisible(newVal);
+        });
+
+        protractorLabel = new Label("Angle: --");
+        protractorLabel.setVisible(false);
+        protractorLabel.setStyle("-fx-font-family: monospace; -fx-font-size: 12;");
 
         Button autoTrackButton = new Button("🤖 Auto-track");
         autoTrackButton.setDisable(true);
@@ -318,7 +482,8 @@ public class TrackerFxApp extends Application {
         videoInfoLabel.setStyle("-fx-text-fill: #888;");
 
         HBox controls = new HBox(10, prevButton, playButton, nextButton, frameLabel,
-                markButton, stickButton, vectorsButton, autoTrackButton);
+                markButton, stickButton, protractorButton, vectorsButton, autoTrackButton,
+                protractorLabel);
         controls.setAlignment(Pos.CENTER);
         controls.setPadding(new Insets(10));
 
@@ -427,6 +592,34 @@ public class TrackerFxApp extends Application {
         axisSelectorBox.setAlignment(Pos.CENTER_LEFT);
         axisSelectorBox.setPadding(new Insets(4, 0, 4, 0));
 
+        // Plot toolbar
+        Button resetZoomBtn = new Button("Reset zoom");
+        resetZoomBtn.setOnAction(e -> {
+            if (plot != null) {
+                ((NumberAxis) plot.getXAxis()).setAutoRanging(true);
+                ((NumberAxis) plot.getYAxis()).setAutoRanging(true);
+            }
+        });
+        Button clearModelBtn = new Button("Clear model");
+        clearModelBtn.setOnAction(e -> {
+            if (modelSeries != null) modelSeries.getData().clear();
+            lastFit = null;
+        });
+        Button copyCSVBtn = new Button("Copy CSV");
+        copyCSVBtn.setOnAction(e -> {
+            if (trajectorySeries == null) return;
+            StringBuilder sb = new StringBuilder("x,y\n");
+            for (XYChart.Data<Number, Number> d : trajectorySeries.getData()) {
+                sb.append(d.getXValue()).append(",").append(d.getYValue()).append("\n");
+            }
+            ClipboardContent content = new ClipboardContent();
+            content.putString(sb.toString());
+            Clipboard.getSystemClipboard().setContent(content);
+        });
+        HBox plotToolbar = new HBox(8, resetZoomBtn, clearModelBtn, copyCSVBtn);
+        plotToolbar.setAlignment(Pos.CENTER_LEFT);
+        plotToolbar.setPadding(new Insets(2, 0, 2, 0));
+
         NumberAxis xAxis = new NumberAxis();
         xAxis.setLabel(AnalysisVariable.TIME.label());
         NumberAxis yAxis = new NumberAxis();
@@ -437,14 +630,18 @@ public class TrackerFxApp extends Application {
         plot.setLegendVisible(false);
         plot.setAnimated(false);
         trajectorySeries = new XYChart.Series<>();
+        trajectorySeries.setName("data");
+        modelSeries = new XYChart.Series<>();
+        modelSeries.setName("model");
         plot.getData().add(trajectorySeries);
+        plot.getData().add(modelSeries);
 
         kinematicsLabel = new Label("frame=0  (no data)");
         kinematicsLabel.setWrapText(true);
         kinematicsLabel.setStyle("-fx-font-size: 11; -fx-font-family: monospace;");
 
         VBox panel = new VBox(10, trackListTitle, trackListView, tableTitle, pointTable,
-                axisSelectorBox, plot, kinematicsLabel);
+                axisSelectorBox, plotToolbar, plot, kinematicsLabel);
         panel.setPadding(new Insets(10));
         VBox.setVgrow(plot, Priority.ALWAYS);
         return panel;
@@ -470,6 +667,7 @@ public class TrackerFxApp extends Application {
 
     private void refreshTrajectoryPlot() {
         trajectorySeries.getData().clear();
+        if (modelSeries != null) modelSeries.getData().clear();
         if (xAxisChoice == null || yAxisChoice == null) return;
         var r = analyzeCurrent();
         int n = AnalysisVariable.sampleCount(r);
@@ -486,6 +684,37 @@ public class TrackerFxApp extends Application {
             ((javafx.scene.chart.NumberAxis) plot.getXAxis()).setLabel(xv.label());
             ((javafx.scene.chart.NumberAxis) plot.getYAxis()).setLabel(yv.label());
         }
+
+        // Overlay model series if fit is available and axes are compatible
+        if (lastFit != null && modelSeries != null) {
+            boolean timeVsX = (xv == AnalysisVariable.TIME && yv == AnalysisVariable.WORLD_X);
+            boolean timeVsY = (xv == AnalysisVariable.TIME && yv == AnalysisVariable.WORLD_Y);
+            boolean xVsY    = (xv == AnalysisVariable.WORLD_X && yv == AnalysisVariable.WORLD_Y);
+            if (timeVsX || timeVsY || xVsY) {
+                List<Double> predX = lastFit.predictedX();
+                List<Double> predY = lastFit.predictedY();
+                int nFit = Math.min(predX.size(), predY.size());
+                double fps = (videoSource != null && videoSource.isOpen()) ? videoSource.getFrameRate() : 30.0;
+                double dt = 1.0 / Math.max(1.0, fps);
+                for (int i = 0; i < nFit; i++) {
+                    double px, py;
+                    if (timeVsX) {
+                        px = i * dt;
+                        py = predX.get(i);
+                    } else if (timeVsY) {
+                        px = i * dt;
+                        py = predY.get(i);
+                    } else {
+                        px = predX.get(i);
+                        py = predY.get(i);
+                    }
+                    if (!Double.isNaN(px) && !Double.isNaN(py)) {
+                        modelSeries.getData().add(new XYChart.Data<>(px, py));
+                    }
+                }
+            }
+        }
+
         updateKinematicsLabel();
     }
 
@@ -577,12 +806,35 @@ public class TrackerFxApp extends Application {
         drawVideoFrame(fxImage, frame.getWidth(), frame.getHeight());
         drawTrackedPoints(frameIndex);
         drawAxes();
+        if (protractorButton != null && protractorButton.isSelected()) {
+            drawProtractor();
+        }
 
         int total = videoSource.getFrameCount();
         frameLabel.setText(String.format("Frame: %d / %d", frameIndex, Math.max(0, total - 1)));
         frameSlider.setValue(frameIndex);
         currentFrame = frameIndex;
         updateKinematicsLabel();
+    }
+
+    private void drawProtractor() {
+        int n = protractorPoints.size();
+        if (n == 0) return;
+        gc.setStroke(Color.CYAN);
+        gc.setFill(Color.CYAN);
+        gc.setLineWidth(2.0);
+        double[] v = protractorPoints.get(0);
+        gc.fillOval(v[0] - 4, v[1] - 4, 8, 8);
+        if (n >= 2) {
+            double[] a = protractorPoints.get(1);
+            gc.fillOval(a[0] - 4, a[1] - 4, 8, 8);
+            gc.strokeLine(v[0], v[1], a[0], a[1]);
+        }
+        if (n >= 3) {
+            double[] b = protractorPoints.get(2);
+            gc.fillOval(b[0] - 4, b[1] - 4, 8, 8);
+            gc.strokeLine(v[0], v[1], b[0], b[1]);
+        }
     }
 
     private void drawVideoFrame(Image image, int imgWidth, int imgHeight) {
