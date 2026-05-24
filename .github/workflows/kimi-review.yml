@@ -1,0 +1,21 @@
+name: Kimi Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  kimi-review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Unluckyathecking/kimi-code-reviewer@main
+        with:
+          kimi_api_key: ${{ secrets.MOONSHOT_API_KEY }}
+          fail_on: warning
