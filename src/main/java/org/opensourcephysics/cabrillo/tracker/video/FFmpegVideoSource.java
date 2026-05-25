@@ -1,6 +1,7 @@
 package org.opensourcephysics.cabrillo.tracker.video;
 
 import java.awt.image.BufferedImage;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -69,6 +70,19 @@ public class FFmpegVideoSource implements VideoSource {
     public void open(Path file) {
         lock.writeLock().lock();
         try {
+            if (file == null) {
+                throw new IllegalArgumentException("Video file path cannot be null");
+            }
+            if (!file.toString().trim().isEmpty() && !Files.exists(file)) {
+                throw new IllegalArgumentException("Video file does not exist: " + file);
+            }
+            if (Files.exists(file) && !Files.isReadable(file)) {
+                throw new IllegalArgumentException("Video file is not readable: " + file);
+            }
+            if (file.toString().trim().isEmpty()) {
+                throw new IllegalArgumentException("Video file path cannot be empty");
+            }
+
             if (isOpen()) {
                 close();
             }
