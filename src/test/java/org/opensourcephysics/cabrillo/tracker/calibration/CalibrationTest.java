@@ -82,4 +82,45 @@ public class CalibrationTest {
         assertEquals(412.5, p.x(), 1e-9);
         assertEquals(173.25, p.y(), 1e-9);
     }
+
+
+
+
+    @Test
+    public void testDegenerateScale() {
+        IllegalArgumentException ex1 = assertThrows(IllegalArgumentException.class, () -> new Calibration(0.0, 0, 0, 0));
+        assertTrue(ex1.getMessage().contains("scale"));
+        IllegalArgumentException ex2 = assertThrows(IllegalArgumentException.class, () -> new Calibration(Double.NaN, 0, 0, 0));
+        assertTrue(ex2.getMessage().contains("scale"));
+        IllegalArgumentException ex3 = assertThrows(IllegalArgumentException.class, () -> new Calibration(Double.POSITIVE_INFINITY, 0, 0, 0));
+        assertTrue(ex3.getMessage().contains("scale"));
+        IllegalArgumentException ex4 = assertThrows(IllegalArgumentException.class, () -> new Calibration(Double.NEGATIVE_INFINITY, 0, 0, 0));
+        assertTrue(ex4.getMessage().contains("scale"));
+    }
+
+    @Test
+    public void testDegenerateOrigin() {
+        IllegalArgumentException ex1 = assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, Double.NaN, 0, 0));
+        assertTrue(ex1.getMessage().contains("originX"));
+        IllegalArgumentException ex2 = assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, 0, Double.NaN, 0));
+        assertTrue(ex2.getMessage().contains("originY"));
+        IllegalArgumentException ex3 = assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, Double.POSITIVE_INFINITY, 0, 0));
+        assertTrue(ex3.getMessage().contains("originX"));
+        IllegalArgumentException ex4 = assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, Double.NEGATIVE_INFINITY, 0, 0));
+        assertTrue(ex4.getMessage().contains("originX"));
+        IllegalArgumentException ex5 = assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, 0, Double.POSITIVE_INFINITY, 0));
+        assertTrue(ex5.getMessage().contains("originY"));
+        IllegalArgumentException ex6 = assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, 0, Double.NEGATIVE_INFINITY, 0));
+        assertTrue(ex6.getMessage().contains("originY"));
+    }
+
+    @Test
+    public void testDegenerateAngle() {
+        IllegalArgumentException ex1 = assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, 0, 0, Double.NaN));
+        assertTrue(ex1.getMessage().contains("angle"));
+        IllegalArgumentException ex2 = assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, 0, 0, Double.POSITIVE_INFINITY));
+        assertTrue(ex2.getMessage().contains("angle"));
+        IllegalArgumentException ex3 = assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, 0, 0, Double.NEGATIVE_INFINITY));
+        assertTrue(ex3.getMessage().contains("angle"));
+    }
 }
