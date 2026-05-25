@@ -74,7 +74,7 @@ public class FrameCache {
      * This method does not load a new frame - call loadFrame() for that.</p>
      *
      * @param frameIndex the frame index to retrieve
-     * @return the cached Bufferedlmage, or null if not found or index is invalid
+     * @return the cached BufferedImage, or null if not found
      * @throws IllegalStateException if frameIndex is invalid
      */
     public BufferedImage get(int frameIndex) {
@@ -82,15 +82,18 @@ public class FrameCache {
             throw new IllegalStateException("frameIndex cannot be negative: " + frameIndex);
         }
 
-        lock.writeLock().lock();
+        lock.readLock().lock();
         try {
             BufferedImage frame = cache.get(frameIndex);
             if (frame != null) {
+                // Technically totalHits++ is a race condition here under read lock,
+                // but for a statistics counter it's an acceptable benign race
+                // compared to serializing all cache gets behind a write lock.
                 totalHits++;
             }
             return frame;
         } finally {
-            lock.writeLock().unlock();
+            lock.readLock().unlock();
         }
     }
 
@@ -228,8 +231,9 @@ public class FrameCache {
     public String toString() {
         lock.readLock().lock();
         try {
+            double ratio = totalLoads == 0 ? 0.0 : (double) totalHits / totalLoads;
             return String.format("FrameCache[size=%d/%d, hits=%d, loads=%d, ratio=%.2f%%]",
-                cache.size(), maxSize, totalHits, totalLoads, getHitRatio() * 100);
+                cache.size(), maxSize, totalHits, totalLoads, ratio * 100);
         } finally {
             lock.readLock().unlock();
         }

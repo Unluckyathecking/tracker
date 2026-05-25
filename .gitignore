@@ -11,3 +11,4 @@ src/org/opensourcephysics/controls/OSPLog_template.txt
 /target/
 tracker.prefs
 //.classpath
+*.class
