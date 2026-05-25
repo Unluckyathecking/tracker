@@ -75,11 +75,11 @@ public class FrameCache {
      *
      * @param frameIndex the frame index to retrieve
      * @return the cached BufferedImage, or null if not found
-     * @throws IllegalArgumentException if frameIndex is invalid
+     * @throws IllegalStateException if frameIndex is invalid
      */
     public BufferedImage get(int frameIndex) {
         if (frameIndex < 0) {
-            throw new IllegalArgumentException("frameIndex cannot be negative: " + frameIndex);
+            throw new IllegalStateException("frameIndex cannot be negative: " + frameIndex);
         }
 
         lock.readLock().lock();
