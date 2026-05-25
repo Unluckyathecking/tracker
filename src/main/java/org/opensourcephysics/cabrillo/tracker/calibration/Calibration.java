@@ -24,6 +24,18 @@ public final class Calibration {
     }
 
     public Calibration(double scale, double originX, double originY, double angle) {
+        if (!Double.isFinite(scale) || scale == 0.0) {
+            throw new IllegalArgumentException("Invalid scale: " + scale);
+        }
+        if (!Double.isFinite(originX)) {
+            throw new IllegalArgumentException("Invalid originX: " + originX);
+        }
+        if (!Double.isFinite(originY)) {
+            throw new IllegalArgumentException("Invalid originY: " + originY);
+        }
+        if (!Double.isFinite(angle)) {
+            throw new IllegalArgumentException("Invalid angle: " + angle);
+        }
         this.scale = scale;
         this.originX = originX;
         this.originY = originY;

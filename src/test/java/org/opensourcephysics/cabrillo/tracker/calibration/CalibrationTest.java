@@ -82,4 +82,26 @@ public class CalibrationTest {
         assertEquals(412.5, p.x(), 1e-9);
         assertEquals(173.25, p.y(), 1e-9);
     }
+
+
+// add tests for invalid cases
+
+    @Test
+    public void testDegenerateScale() {
+        assertThrows(IllegalArgumentException.class, () -> new Calibration(0.0, 0, 0, 0));
+        assertThrows(IllegalArgumentException.class, () -> new Calibration(Double.NaN, 0, 0, 0));
+        assertThrows(IllegalArgumentException.class, () -> new Calibration(Double.POSITIVE_INFINITY, 0, 0, 0));
+    }
+
+    @Test
+    public void testDegenerateOrigin() {
+        assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, Double.NaN, 0, 0));
+        assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, 0, Double.NaN, 0));
+        assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, Double.POSITIVE_INFINITY, 0, 0));
+    }
+
+    @Test
+    public void testDegenerateAngle() {
+        assertThrows(IllegalArgumentException.class, () -> new Calibration(1.0, 0, 0, Double.NaN));
+    }
 }
