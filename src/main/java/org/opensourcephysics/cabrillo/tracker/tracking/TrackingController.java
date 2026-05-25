@@ -136,7 +136,9 @@ public class TrackingController {
                 ? t.withoutPoint(edit.frame())
                 : t.withPoint(edit.frame(), edit.after());
             tracks.set(i, updated);
-            for (TrackingListener l : listeners) l.onTrackChanged(updated);
+            for (TrackingListener l : listeners) {
+                if (l != null) l.onTrackChanged(updated);
+            }
             return;
         }
     }
