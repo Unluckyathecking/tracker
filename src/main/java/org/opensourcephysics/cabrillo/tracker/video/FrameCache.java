@@ -112,10 +112,9 @@ public class FrameCache {
             throw new IllegalArgumentException("frame cannot be null");
         }
 
-        totalLoads++;
-
         lock.writeLock().lock();
         try {
+            totalLoads++;
             // Only update if not already present (hit means no load needed)
             if (!cache.containsKey(frameIndex)) {
                 cache.put(frameIndex, frame);
@@ -181,7 +180,12 @@ public class FrameCache {
      * @return total loads count
      */
     public long getTotalLoads() {
-        return totalLoads;
+        lock.readLock().lock();
+        try {
+            return totalLoads;
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /**
@@ -190,7 +194,12 @@ public class FrameCache {
      * @return total hits count
      */
     public long getTotalHits() {
-        return totalHits;
+        lock.readLock().lock();
+        try {
+            return totalHits;
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /**
@@ -199,10 +208,15 @@ public class FrameCache {
      * @return hit ratio as a double between 0 and 1, or 0.0 if no loads have occurred
      */
     public double getHitRatio() {
-        if (totalLoads == 0) {
-            return 0.0;
+        lock.readLock().lock();
+        try {
+            if (totalLoads == 0) {
+                return 0.0;
+            }
+            return (double) totalHits / totalLoads;
+        } finally {
+            lock.readLock().unlock();
         }
-        return (double) totalHits / totalLoads;
     }
 
     /**
@@ -212,8 +226,13 @@ public class FrameCache {
      */
     @Override
     public String toString() {
-        return String.format("FrameCache[size=%d/%d, hits=%d, loads=%d, ratio=%.2f%%]",
-            size(), maxSize, totalHits, totalLoads, getHitRatio() * 100);
+        lock.readLock().lock();
+        try {
+            return String.format("FrameCache[size=%d/%d, hits=%d, loads=%d, ratio=%.2f%%]",
+                cache.size(), maxSize, totalHits, totalLoads, getHitRatio() * 100);
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /**
