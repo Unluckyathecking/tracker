@@ -30,10 +30,10 @@ public class FrameCache {
     private final ReentrantReadWriteLock lock;
 
     /** Total frames loaded across all cache accesses */
-    private long totalLoads;
+    private final java.util.concurrent.atomic.LongAdder totalLoads;
 
     /** Total frame cache hits */
-    private long totalHits;
+    private final java.util.concurrent.atomic.LongAdder totalHits;
 
     /**
      * Creates a FrameCache with default maximum capacity of 100 frames.
@@ -63,8 +63,8 @@ public class FrameCache {
             }
         };
         this.lock = new ReentrantReadWriteLock();
-        this.totalLoads = 0;
-        this.totalHits = 0;
+        this.totalLoads = new java.util.concurrent.atomic.LongAdder();
+        this.totalHits = new java.util.concurrent.atomic.LongAdder();
     }
 
     /**
@@ -86,10 +86,7 @@ public class FrameCache {
         try {
             BufferedImage frame = cache.get(frameIndex);
             if (frame != null) {
-                // Technically totalHits++ is a race condition here under read lock,
-                // but for a statistics counter it's an acceptable benign race
-                // compared to serializing all cache gets behind a write lock.
-                totalHits++;
+                totalHits.increment();
             }
             return frame;
         } finally {
@@ -117,9 +114,9 @@ public class FrameCache {
 
         lock.writeLock().lock();
         try {
-            totalLoads++;
             // Only update if not already present (hit means no load needed)
             if (!cache.containsKey(frameIndex)) {
+                totalLoads.increment();
                 cache.put(frameIndex, frame);
             }
         } finally {
@@ -183,12 +180,7 @@ public class FrameCache {
      * @return total loads count
      */
     public long getTotalLoads() {
-        lock.readLock().lock();
-        try {
-            return totalLoads;
-        } finally {
-            lock.readLock().unlock();
-        }
+        return totalLoads.sum();
     }
 
     /**
@@ -197,12 +189,7 @@ public class FrameCache {
      * @return total hits count
      */
     public long getTotalHits() {
-        lock.readLock().lock();
-        try {
-            return totalHits;
-        } finally {
-            lock.readLock().unlock();
-        }
+        return totalHits.sum();
     }
 
     /**
@@ -211,15 +198,11 @@ public class FrameCache {
      * @return hit ratio as a double between 0 and 1, or 0.0 if no loads have occurred
      */
     public double getHitRatio() {
-        lock.readLock().lock();
-        try {
-            if (totalLoads == 0) {
-                return 0.0;
-            }
-            return (double) totalHits / totalLoads;
-        } finally {
-            lock.readLock().unlock();
+        long loads = totalLoads.sum();
+        if (loads == 0) {
+            return 0.0;
         }
+        return (double) totalHits.sum() / loads;
     }
 
     /**
@@ -229,14 +212,11 @@ public class FrameCache {
      */
     @Override
     public String toString() {
-        lock.readLock().lock();
-        try {
-            double ratio = totalLoads == 0 ? 0.0 : (double) totalHits / totalLoads;
-            return String.format("FrameCache[size=%d/%d, hits=%d, loads=%d, ratio=%.2f%%]",
-                cache.size(), maxSize, totalHits, totalLoads, ratio * 100);
-        } finally {
-            lock.readLock().unlock();
-        }
+        long loads = totalLoads.sum();
+        long hits = totalHits.sum();
+        double ratio = loads == 0 ? 0.0 : (double) hits / loads;
+        return String.format("FrameCache[size=%d/%d, hits=%d, loads=%d, ratio=%.2f%%]",
+            size(), maxSize, hits, loads, ratio * 100);
     }
 
     /**
