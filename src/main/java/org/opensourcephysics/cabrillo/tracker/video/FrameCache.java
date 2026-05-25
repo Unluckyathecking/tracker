@@ -75,11 +75,11 @@ public class FrameCache {
      *
      * @param frameIndex the frame index to retrieve
      * @return the cached BufferedImage, or null if not found
-     * @throws IllegalStateException if frameIndex is invalid
+     * @throws IllegalArgumentException if frameIndex is invalid
      */
     public BufferedImage get(int frameIndex) {
         if (frameIndex < 0) {
-            throw new IllegalStateException("frameIndex cannot be negative: " + frameIndex);
+            throw new IllegalArgumentException("frameIndex cannot be negative: " + frameIndex);
         }
 
         lock.readLock().lock();
@@ -212,11 +212,16 @@ public class FrameCache {
      */
     @Override
     public String toString() {
-        long loads = totalLoads.sum();
-        long hits = totalHits.sum();
-        double ratio = loads == 0 ? 0.0 : (double) hits / loads;
-        return String.format("FrameCache[size=%d/%d, hits=%d, loads=%d, ratio=%.2f%%]",
-            size(), maxSize, hits, loads, ratio * 100);
+        lock.readLock().lock();
+        try {
+            long loads = totalLoads.sum();
+            long hits = totalHits.sum();
+            double ratio = loads == 0 ? 0.0 : (double) hits / loads;
+            return String.format("FrameCache[size=%d/%d, hits=%d, loads=%d, ratio=%.2f%%]",
+                cache.size(), maxSize, hits, loads, ratio * 100);
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /**
