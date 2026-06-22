@@ -1,7 +1,10 @@
 package org.opensourcephysics.cabrillo.tracker.video;
 
 import java.awt.image.BufferedImage;
+import java.io.UncheckedIOException;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -68,21 +71,29 @@ public class FFmpegVideoSource implements VideoSource {
 
     @Override
     public void open(Path file) {
-        lock.writeLock().lock();
+        // Validate before acquiring the write lock to avoid holding the lock
+        // during blocking filesystem I/O (Files.exists / Files.isReadable).
+        if (file == null) {
+            throw new IllegalArgumentException("Video file path cannot be null");
+        }
+        String pathStr = file.toString().trim();
+        if (pathStr.isEmpty()) {
+            throw new IllegalArgumentException("Video file path cannot be empty");
+        }
         try {
-            if (file == null) {
-                throw new IllegalArgumentException("Video file path cannot be null");
-            }
-            if (!file.toString().trim().isEmpty() && !Files.exists(file)) {
+            if (!Files.exists(file)) {
                 throw new IllegalArgumentException("Video file does not exist: " + file);
             }
-            if (Files.exists(file) && !Files.isReadable(file)) {
-                throw new IllegalArgumentException("Video file is not readable: " + file);
+            if (!Files.isReadable(file)) {
+                throw new UncheckedIOException(new AccessDeniedException(file.toString(),
+                        null, "Video file is not readable"));
             }
-            if (file.toString().trim().isEmpty()) {
-                throw new IllegalArgumentException("Video file path cannot be empty");
-            }
+        } catch (InvalidPathException e) {
+            throw new IllegalArgumentException("Invalid video file path: " + file, e);
+        }
 
+        lock.writeLock().lock();
+        try {
             if (isOpen()) {
                 close();
             }
