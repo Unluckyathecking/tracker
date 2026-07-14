@@ -34,9 +34,9 @@ A clean-room rebuild of the [OpenSourcePhysics Tracker](https://github.com/OpenS
 ## Build
 
 ```bash
-cd /tmp/tracker_rebuild
+# from the repository root
 mvn clean package          # builds JAR at target/tracker-rebuild-1.0.0-SNAPSHOT.jar
-mvn test                   # 51 tests
+mvn test                   # 43 tests
 ```
 
 ## Run Console Demo
@@ -125,7 +125,7 @@ DataExporter.exportToCsv(ball, 30.0, project.getCalibration(), Path.of("data.csv
 - Java 17
 - JavaFX 17 (SwingFXUtils for BufferedImage conversion)
 - Maven 3
-- JUnit 5 + AssertJ (51 tests, all passing)
+- JUnit 5 + AssertJ (43 tests, all passing)
 - Gson (serialization)
 - JavaCV / bytedeco FFmpeg (video decoding)
 - Apache Commons Math 3 (optional: advanced fitting)
@@ -133,7 +133,7 @@ DataExporter.exportToCsv(ball, 30.0, project.getCalibration(), Path.of("data.csv
 ## File Layout
 
 ```
-/tmp/tracker_rebuild/
+tracker/
 ├── pom.xml                          # Maven config
 ├── README.md                        # This file
 ├── test_video.mp4                   # Test pattern video (3s, 30fps)
